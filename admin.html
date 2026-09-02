@@ -9562,8 +9562,17 @@ async function syncToSupabase() {
     
     _lastSyncTime = now;
     
+    // ✅ Agregar documentos a cada cuenta ANTES de sincronizar
+    const accsConDocs = accs.map(cuenta => {
+      const docs = getClientDocs(cuenta.id);
+      return {
+        ...cuenta,
+        documentos: docs // Incluir documentos en la sincronización
+      };
+    });
+    
     const data = {
-      accs: accs,
+      accs: accsConDocs,  // ✅ Ahora incluye documentos
       vendedores: vendedores,
       cfg: CFG,
       redes: REDES
@@ -9571,7 +9580,8 @@ async function syncToSupabase() {
     
     console.log('📤 Sincronizando con Supabase...', {
       accs: accs.length,
-      redes: REDES.length
+      redes: REDES.length,
+      docs: accs.reduce((sum, c) => sum + Object.keys(getClientDocs(c.id)).length, 0)
     });
     
     // Usar ruta relativa para Render
@@ -9608,9 +9618,18 @@ async function cargarDesdeSu pabase() {
     
     const data = await response.json();
     
-    // Cargar cuentas
+    // Cargar cuentas ✅ (ahora incluyen documentos)
     if (data.accs && Array.isArray(data.accs) && data.accs.length > 0) {
       accs = data.accs;
+      
+      // ✅ Cargar documentos de cada cuenta a IndexedDB
+      accs.forEach(cuenta => {
+        if (cuenta.documentos && Object.keys(cuenta.documentos).length > 0) {
+          saveClientDocs(cuenta.id, cuenta.documentos);
+          console.log('✅ Documentos cargados para:', cuenta.name);
+        }
+      });
+      
       console.log('✅ Cuentas cargadas:', accs.length);
     }
     
