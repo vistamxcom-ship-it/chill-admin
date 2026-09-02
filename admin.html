@@ -3253,79 +3253,49 @@ function importarBackup(){
 }
 
 function guardarCfg(){
-  CFG.adminUser=document.getElementById('cfg-user').value.trim()||CFG.adminUser;
-  CFG.adminPass=document.getElementById('cfg-pass').value||CFG.adminPass;
-  CFG.waAdmin=document.getElementById('cfg-wa').value.trim();
-  CFG.smsAdmin=document.getElementById('cfg-sms').value.trim();
-  CFG.waNegocio=(document.getElementById('cfg-wa-neg')||{}).value?.trim()||CFG.waNegocio||'';
-  CFG.botContactoNum=(document.getElementById('cfg-contacto-num')||{}).value?.trim()||CFG.botContactoNum||'';
-  CFG.refOXXO=(document.getElementById('cfg-ref-oxxo')||{}).value?.trim()||'';
-  CFG.refSPEI=(document.getElementById('cfg-ref-spei')||{}).value?.trim()||'';
-  CFG.botUrl=document.getElementById('cfg-bot').value.trim();
-  CFG.botLabel=document.getElementById('cfg-botlbl').value.trim()||'nuestro canal de atención';
-  CFG.botPlatform=(document.getElementById('cfg-botplat')||{}).value||'wa';
-  CFG.serverUrl=document.getElementById('cfg-server')?document.getElementById('cfg-server').value.trim()||'http://localhost:3000':CFG.serverUrl;
-  CFG.nombreNegocio=document.getElementById('cfg-nom').value.trim()||CFG.nombreNegocio;
-  CFG.tasaDefecto=parseFloat(document.getElementById('cfg-tasa').value)||50;
-  CFG.solicitudUrl=document.getElementById('cfg-sol').value.trim();
-  CFG.botActivo=(document.getElementById('cfg-bot-activo')||{}).checked||CFG.botActivo;
-  CFG.botIntervaloMin=parseInt((document.getElementById('cfg-bot-intv')||{}).value||60)||60;
-  CFG.botLlamarDias=parseInt((document.getElementById('cfg-bot-dias')||{}).value||3)||3;
-  CFG.botLlamarRefs=(document.getElementById('cfg-bot-refs')||{}).checked!==false;
-  CFG.twilioServer=(document.getElementById('cfg-twilio-server')||{}).value?.trim()||'http://localhost:3000';
-  CFG.twilioSid=(document.getElementById('twilio_sid')||{}).value?.trim()||'';
-  CFG.twilioToken=(document.getElementById('twilio_token')||{}).value?.trim()||'';
-  CFG.twilioSms=(document.getElementById('twilio_number_sms')||{}).value?.trim()||'';
-  CFG.twilioWa=(document.getElementById('twilio_number_wa')||{}).value?.trim()||'';
-  
-  // ✅ GUARDAR LOCALMENTE PRIMERO (INSTANTÁNEO)
   try {
+    // Obtener valores con validación
+    const user = document.getElementById('cfg-user');
+    const pass = document.getElementById('cfg-pass');
+    const nom = document.getElementById('cfg-nom');
+    const tasa = document.getElementById('cfg-tasa');
+    const sol = document.getElementById('cfg-sol');
+    
+    if(user) CFG.adminUser = user.value.trim() || CFG.adminUser;
+    if(pass) CFG.adminPass = pass.value || CFG.adminPass;
+    if(nom) CFG.nombreNegocio = nom.value.trim() || CFG.nombreNegocio;
+    if(tasa) CFG.tasaDefecto = parseFloat(tasa.value) || 50;
+    if(sol) CFG.solicitudUrl = sol.value.trim();
+    
+    // Guardar en localStorage INMEDIATAMENTE
     localStorage.setItem('dmin_cfg', JSON.stringify(CFG));
-  } catch(e) {}
-  
-  if(typeof persist !== 'undefined') {
-    persist.saveConfig();
+    
+    // Mostrar confirmación
+    const msgEl = document.getElementById('cfg-msg');
+    if(msgEl) {
+      msgEl.textContent = '✓ Configuración guardada';
+      msgEl.style.color = 'var(--grn)';
+      setTimeout(() => { msgEl.textContent = ''; }, 3000);
+    }
+    
+    // Sincronizar con servidor en background (no bloquear)
+    setTimeout(() => {
+      saveData(); // Usar la función saveData existente para sincronizar TODO
+    }, 100);
+    
+    console.log('✅ Configuración guardada:', CFG);
+    
+  } catch(err) {
+    console.error('❌ Error en guardarCfg:', err);
+    const msgEl = document.getElementById('cfg-msg');
+    if(msgEl) {
+      msgEl.textContent = '❌ Error al guardar';
+      msgEl.style.color = 'var(--red)';
+    }
   }
-  
-  // Mostrar mensaje INMEDIATAMENTE (no esperar al servidor)
-  document.getElementById('cfg-msg').textContent='✓ Configuración guardada';
-  document.getElementById('cfg-msg').style.color='var(--grn)';
-  setTimeout(()=>document.getElementById('cfg-msg').textContent='',3000);
-  
-  // 🔄 EN BACKGROUND: sincronizar a Supabase (SIN BLOQUEAR)
-  // ✅ FIX: usar ruta relativa '/sync' (igual que saveData) en vez de CFG.serverUrl,
-  // que por defecto apunta a http://localhost:3000 y falla en producción.
-  setTimeout(() => {
-    fetch('/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        accs: accs,
-        vendedores: vendedores,
-        cfg: CFG,
-        redes: (typeof REDES !== 'undefined' ? REDES : [])
-      })
-    })
-    .then(res => {
-      if (res.ok) {
-        console.log('✅ Config sincronizada con Supabase en background');
-      } else {
-        console.error('❌ Error al sincronizar config, status:', res.status);
-        document.getElementById('cfg-msg').textContent='⚠️ Guardado local, pero falló sync con servidor';
-        document.getElementById('cfg-msg').style.color='var(--red, #e05252)';
-      }
-    })
-    .catch(err => {
-      console.warn('⚠️ Sync background error (config está guardada localmente):', err.message);
-      document.getElementById('cfg-msg').textContent='⚠️ Guardado local, sin conexión al servidor';
-      document.getElementById('cfg-msg').style.color='var(--red, #e05252)';
-    });
-  }, 100); // Post en background, no bloquea
 }
 
-// ============================================================
-// GESTIÓN DE VENDEDORES
-// ============================================================
+
 function agregarVendedorCfg(){
   const input = document.getElementById('cfg-nuevo-vendedor');
   const nombre = input?.value?.trim();
@@ -4616,6 +4586,61 @@ const DOC_SLOTS = [
   {key:'video',      label:'Video Prueba', icon:'🎥', accept:'video/*', isVideo:true},
 ];
 const DOC_MAX_SIZE = 500 * 1024 * 1024; // 500MB máximo por documento (sin límite efectivo)
+
+// ✅ FUNCIÓN PARA SUBIR DOCUMENTOS DEL CLIENTE
+function uploadDoc(clienteId, docKey) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*,application/pdf';
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    try {
+      // Guardar en IndexedDB
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const db = await _openIDB();
+        const tx = db.transaction(_IDB_STORE, 'readwrite');
+        const store = tx.objectStore(_IDB_STORE);
+        
+        const docId = clienteId + '-' + docKey;
+        const docData = {
+          id: docId,
+          clienteId,
+          key: docKey,
+          filename: file.name,
+          size: file.size,
+          type: file.type,
+          data: event.target.result,
+          timestamp: new Date().toISOString()
+        };
+        
+        await store.put(docData);
+        
+        // Actualizar UI
+        const statusEl = document.getElementById('doc-status-' + clienteId + '-' + docKey);
+        if (statusEl) {
+          statusEl.textContent = '✓ ' + file.name;
+          statusEl.style.color = 'var(--grn)';
+        }
+        
+        // Guardar en cliente
+        if(!cli.documentos) cli.documentos = {};
+        cli.documentos[docKey] = {filename: file.name, size: file.size, timestamp: new Date().toISOString()};
+        guardarPerfil(clienteId);
+        
+        console.log('✅ Documento guardado:', docKey);
+      };
+      reader.readAsArrayBuffer(file);
+    } catch(err) {
+      alert('❌ Error al guardar documento: ' + err.message);
+      console.error(err);
+    }
+  };
+  input.click();
+}
+
 function formatBytes(bytes){
   if(bytes===0) return '0 B';
   const k=1024;
@@ -8448,26 +8473,21 @@ window.mostrarPerfilClienteExp = function(clienteId) {
         <div style="background:var(--bg3);border:1px solid var(--brd);border-radius:8px;padding:15px;margin-bottom:20px">
           <div style="font-size:11px;color:var(--t3);text-transform:uppercase;font-weight:600;margin-bottom:12px">📄 DOCUMENTOS DEL CLIENTE</div>
           <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
-            <div style="background:var(--bg2);border:1px dashed var(--brd);border-radius:6px;padding:15px;text-align:center;cursor:pointer">
-              <div style="font-size:24px;margin-bottom:8px">🪪</div>
-              <div style="font-size:9px;color:var(--t3);text-transform:uppercase">INE Frente</div>
-              <div style="font-size:9px;color:var(--grn);margin-top:8px">+ subir</div>
-            </div>
-            <div style="background:var(--bg2);border:1px dashed var(--brd);border-radius:6px;padding:15px;text-align:center;cursor:pointer">
-              <div style="font-size:24px;margin-bottom:8px">🪪</div>
-              <div style="font-size:9px;color:var(--t3);text-transform:uppercase">INE Reverso</div>
-              <div style="font-size:9px;color:var(--grn);margin-top:8px">+ subir</div>
-            </div>
-            <div style="background:var(--bg2);border:1px dashed var(--brd);border-radius:6px;padding:15px;text-align:center;cursor:pointer">
-              <div style="font-size:24px;margin-bottom:8px">🏠</div>
-              <div style="font-size:9px;color:var(--t3);text-transform:uppercase">Comprobante</div>
-              <div style="font-size:9px;color:var(--grn);margin-top:8px">+ subir</div>
-            </div>
-            <div style="background:var(--bg2);border:1px dashed var(--brd);border-radius:6px;padding:15px;text-align:center;cursor:pointer">
-              <div style="font-size:24px;margin-bottom:8px">📄</div>
-              <div style="font-size:9px;color:var(--t3);text-transform:uppercase">CURP Doc.</div>
-              <div style="font-size:9px;color:var(--grn);margin-top:8px">+ subir</div>
-            </div>
+${(() => {
+              const slots = [
+                {key:'ine_front',  label:'INE Frente',   icon:'🪪'},
+                {key:'ine_back',   label:'INE Reverso',  icon:'🪪'},
+                {key:'comprobante',label:'Comprobante',  icon:'🏠'},
+                {key:'curp_doc',   label:'CURP Doc.',    icon:'📄'},
+              ];
+              return slots.map(s => `
+                <div style="background:var(--bg2);border:1px dashed var(--brd);border-radius:6px;padding:15px;text-align:center;cursor:pointer" onclick="uploadDoc('${cli.id}','${s.key}')">
+                  <div style="font-size:24px;margin-bottom:8px">${s.icon}</div>
+                  <div style="font-size:9px;color:var(--t3);text-transform:uppercase">${s.label}</div>
+                  <div style="font-size:9px;color:var(--grn);margin-top:8px" id="doc-status-${cli.id}-${s.key}">+ subir</div>
+                </div>
+              `).join('');
+            })()}
           </div>
         </div>
         
