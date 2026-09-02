@@ -4938,31 +4938,100 @@ function onDocFileSelected(id,input){
   input.value='';
 }
 function viewClientDoc(id,key){
-  const docs=getClientDocs(id);const doc=docs[key];if(!doc) return;
+  const docs=getClientDocs(id);
+  const doc=docs[key];
+  
+  if(!doc){
+    alert('❌ Documento no encontrado');
+    return;
+  }
+  
   try{
-    const w=window.open('','_blank');
-    if(!w){alert('❌ Popup bloqueado. Abre en otra ventana.');return;}
+    // Prioridad: blob > data > nada
+    let srcData = null;
     
-    // Si el documento viene del nuevo sistema (blob), convertir a URL
-    const srcData = doc.data ? doc.data : (doc.blob ? URL.createObjectURL(doc.blob) : null);
-    if(!srcData){
-      alert('❌ No hay datos del documento');
+    // Si tiene blob (es un File object), usarlo directamente
+    if(doc.blob){
+      srcData = URL.createObjectURL(doc.blob);
+    }
+    // Si tiene data (ArrayBuffer), convertir a Blob
+    else if(doc.data){
+      const blob = new Blob([doc.data], {type: doc.type || 'application/octet-stream'});
+      srcData = URL.createObjectURL(blob);
+    }
+    // Si no tiene datos, intentar cargar desde IndexedDB
+    else {
+      // Buscar en IndexedDB el contenido completo
+      _openIDB().then(db => {
+        const tx = db.transaction(_IDB_STORE, 'readonly');
+        const store = tx.objectStore(_IDB_STORE);
+        const cliente = accs.find(x=>x.id===id) || accs.find(x=>x.id===parseInt(id));
+        const cacheKey = cliente ? cliente.clientNum : id;
+        const req = store.get('client_'+cacheKey);
+        
+        req.onsuccess = () => {
+          const data = req.result;
+          if(data && data.docs && data.docs[key]){
+            const fullDoc = data.docs[key];
+            console.log('Doc encontrado en IDB:', fullDoc);
+            
+            // Intentar abrir con lo que tengamos
+            if(fullDoc.blob){
+              abrirDocumento(URL.createObjectURL(fullDoc.blob), fullDoc.type, fullDoc.name);
+            } else if(fullDoc.data){
+              const blob = new Blob([fullDoc.data], {type: fullDoc.type});
+              abrirDocumento(URL.createObjectURL(blob), fullDoc.type, fullDoc.name);
+            } else {
+              alert('❌ No hay datos del documento en almacenamiento');
+            }
+          } else {
+            alert('❌ No se encontró el documento en la base de datos');
+          }
+        };
+      }).catch(e => {
+        console.error('Error accediendo IndexedDB:', e);
+        alert('❌ Error: ' + e.message);
+      });
       return;
     }
     
-    if(doc.type&&doc.type.startsWith('video/')){
-      w.document.write(`<body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh"><video src="${srcData}" controls style="max-width:100%;max-height:100vh"></video></body>`);
-    } else if(doc.type&&doc.type.startsWith('image/')){
-      w.document.write(`<body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh"><img src="${srcData}" style="max-width:100%;max-height:100vh;object-fit:contain"></body>`);
-    } else if(doc.type==='application/pdf'){
-      w.document.write(`<body style="margin:0"><iframe src="${srcData}" style="width:100%;height:100vh;border:none"></iframe></body>`);
-    } else {
-      w.document.write(`<body style="margin:0"><embed src="${srcData}" type="${doc.type}" width="100%" height="100%"></body>`);
+    if(!srcData){
+      alert('❌ No se pueden cargar los datos del documento');
+      return;
     }
+    
+    abrirDocumento(srcData, doc.type, doc.name);
+    
   }catch(e){
+    console.error('Error en viewClientDoc:', e);
     alert('❌ Error al abrir documento: '+e.message);
   }
 }
+
+// Función auxiliar para abrir documento en nueva pestaña
+function abrirDocumento(srcData, type, name){
+  try{
+    const w = window.open('', '_blank');
+    if(!w){
+      alert('❌ Popup bloqueado. Intenta abrir en otra ventana.');
+      return;
+    }
+    
+    if(type && type.startsWith('video/')){
+      w.document.write(`<body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh"><video src="${srcData}" controls style="max-width:100%;max-height:100vh"></video></body>`);
+    } else if(type && type.startsWith('image/')){
+      w.document.write(`<body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh"><img src="${srcData}" style="max-width:100%;max-height:100vh;object-fit:contain"></body>`);
+    } else if(type === 'application/pdf'){
+      w.document.write(`<body style="margin:0"><iframe src="${srcData}" style="width:100%;height:100vh;border:none"></iframe></body>`);
+    } else {
+      w.document.write(`<body style="margin:0"><embed src="${srcData}" type="${type}" width="100%" height="100%"></body>`);
+    }
+  }catch(e){
+    console.error('Error abriendo documento:', e);
+    alert('❌ Error al abrir: ' + e.message);
+  }
+}
+
 function deleteClientDoc(id,key){
   if(!confirm('¿Eliminar este documento?')) return;
   const docs=getClientDocs(id);delete docs[key];
