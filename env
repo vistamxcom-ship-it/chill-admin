@@ -1,0 +1,7 @@
+# SUPABASE
+SUPABASE_URL=https://heljnwezenhdaxjcevti.supabase.co
+SUPABASE_KEY=sb_publishable_JEl1Zq6hs0sbGQ32Y1uzaA_7Px1gXkq
+
+# SERVER
+PORT=3000
+NODE_ENV=production
