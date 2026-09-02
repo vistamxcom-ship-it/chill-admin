@@ -4884,7 +4884,7 @@ function onDocFileSelected(id,input){
     return;
   }
   
-  // Validar tamaño (ahora 500MB sin límite efectivo)
+  // Validar tamaño
   if(file.size > DOC_MAX_SIZE){
     alert('❌ Archivo muy grande (máx 500MB). Intenta con uno más pequeño.');
     input.value='';
@@ -4913,30 +4913,51 @@ function onDocFileSelected(id,input){
   }
   
   try{
-    const docs=getClientDocs(id);
-    // Guardar directamente como Blob (más eficiente para archivos grandes)
-    docs[key]={
-      name:file.name,
-      type:file.type,
-      size:file.size,
-      blob:file,
-      data:null, // Se llena cuando necesita visualizar
-      fecha:new Date().toLocaleDateString('es-MX'),
-      hora:new Date().toLocaleTimeString('es-MX')
+    // Leer el archivo como ArrayBuffer y convertir a base64
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const arrayBuffer = e.target.result;
+      const bytes = new Uint8Array(arrayBuffer);
+      let binary = '';
+      for(let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64Data = btoa(binary);
+      
+      // Guardar con base64
+      const docs = getClientDocs(id);
+      docs[key] = {
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        base64: base64Data, // ✅ Guardar como base64 para sincronizar a Supabase
+        fecha: new Date().toLocaleDateString('es-MX'),
+        hora: new Date().toLocaleTimeString('es-MX')
+      };
+      
+      if(saveClientDocs(id, docs)){
+        const cliente = accs.find(x=>x.id===id) || accs.find(x=>x.id===parseInt(id));
+        const gridId = cliente ? cliente.clientNum : id;
+        const grid = document.getElementById('docs-grid-'+gridId);
+        if(grid) grid.innerHTML = renderDocGrid(id);
+        agregarLog('✅ Documento guardado: '+file.name+' ('+formatBytes(file.size)+')');
+        
+        // ✅ Sincronizar inmediatamente a Supabase
+        syncToSupabase();
+      }
     };
-    if(saveClientDocs(id,docs)){
-      const cliente = accs.find(x=>x.id===id) || accs.find(x=>x.id===parseInt(id));
-      const gridId = cliente ? cliente.clientNum : id;
-      const grid=document.getElementById('docs-grid-'+gridId);
-      if(grid) grid.innerHTML=renderDocGrid(id);
-      agregarLog('✅ Documento guardado: '+file.name+' ('+formatBytes(file.size)+')');
-    }
+    reader.onerror = () => {
+      alert('❌ Error al leer archivo');
+    };
+    reader.readAsArrayBuffer(file);
+    
   }catch(err){
     console.error('Error procesando documento:',err);
     alert('❌ Error: '+err.message);
   }
   input.value='';
 }
+
 function viewClientDoc(id,key){
   const docs=getClientDocs(id);
   const doc=docs[key];
@@ -4947,52 +4968,26 @@ function viewClientDoc(id,key){
   }
   
   try{
-    // Prioridad: blob > data > nada
     let srcData = null;
     
-    // Si tiene blob (es un File object), usarlo directamente
-    if(doc.blob){
+    // Prioridad: base64 > blob > data
+    if(doc.base64){
+      // Convertir base64 a blob
+      const bstr = atob(doc.base64);
+      const n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      for(let i = 0; i < n; i++) {
+        u8arr[i] = bstr.charCodeAt(i);
+      }
+      const blob = new Blob([u8arr], {type: doc.type || 'application/octet-stream'});
+      srcData = URL.createObjectURL(blob);
+    }
+    else if(doc.blob){
       srcData = URL.createObjectURL(doc.blob);
     }
-    // Si tiene data (ArrayBuffer), convertir a Blob
     else if(doc.data){
       const blob = new Blob([doc.data], {type: doc.type || 'application/octet-stream'});
       srcData = URL.createObjectURL(blob);
-    }
-    // Si no tiene datos, intentar cargar desde IndexedDB
-    else {
-      // Buscar en IndexedDB el contenido completo
-      _openIDB().then(db => {
-        const tx = db.transaction(_IDB_STORE, 'readonly');
-        const store = tx.objectStore(_IDB_STORE);
-        const cliente = accs.find(x=>x.id===id) || accs.find(x=>x.id===parseInt(id));
-        const cacheKey = cliente ? cliente.clientNum : id;
-        const req = store.get('client_'+cacheKey);
-        
-        req.onsuccess = () => {
-          const data = req.result;
-          if(data && data.docs && data.docs[key]){
-            const fullDoc = data.docs[key];
-            console.log('Doc encontrado en IDB:', fullDoc);
-            
-            // Intentar abrir con lo que tengamos
-            if(fullDoc.blob){
-              abrirDocumento(URL.createObjectURL(fullDoc.blob), fullDoc.type, fullDoc.name);
-            } else if(fullDoc.data){
-              const blob = new Blob([fullDoc.data], {type: fullDoc.type});
-              abrirDocumento(URL.createObjectURL(blob), fullDoc.type, fullDoc.name);
-            } else {
-              alert('❌ No hay datos del documento en almacenamiento');
-            }
-          } else {
-            alert('❌ No se encontró el documento en la base de datos');
-          }
-        };
-      }).catch(e => {
-        console.error('Error accediendo IndexedDB:', e);
-        alert('❌ Error: ' + e.message);
-      });
-      return;
     }
     
     if(!srcData){
@@ -5007,6 +5002,31 @@ function viewClientDoc(id,key){
     alert('❌ Error al abrir documento: '+e.message);
   }
 }
+
+// Función auxiliar para abrir documento en nueva pestaña
+function abrirDocumento(srcData, type, name){
+  try{
+    const w = window.open('', '_blank');
+    if(!w){
+      alert('❌ Popup bloqueado. Intenta abrir en otra ventana.');
+      return;
+    }
+    
+    if(type && type.startsWith('video/')){
+      w.document.write(`<body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh"><video src="${srcData}" controls style="max-width:100%;max-height:100vh;border-radius:8px"></video></body>`);
+    } else if(type && type.startsWith('image/')){
+      w.document.write(`<body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh"><img src="${srcData}" style="max-width:100%;max-height:100vh;object-fit:contain;border-radius:8px"></body>`);
+    } else if(type === 'application/pdf'){
+      w.document.write(`<body style="margin:0"><iframe src="${srcData}" style="width:100%;height:100vh;border:none"></iframe></body>`);
+    } else {
+      w.document.write(`<body style="margin:0"><embed src="${srcData}" type="${type}" width="100%" height="100%"></body>`);
+    }
+  }catch(e){
+    console.error('Error abriendo documento:', e);
+    alert('❌ Error al abrir: ' + e.message);
+  }
+}
+
 
 // Función auxiliar para abrir documento en nueva pestaña
 function abrirDocumento(srcData, type, name){
@@ -9526,7 +9546,104 @@ window.guardarPagoICE = function(clienteId) {
     });
   })();
 
-  window.addEventListener('load', function(){
+  
+
+// ============================================================
+// 🔄 SINCRONIZACIÓN AUTOMÁTICA CON SUPABASE
+// ============================================================
+let _lastSyncTime = 0;
+const _syncInterval = 15 * 1000; // 15 segundos
+
+// Función mejorada de sincronización
+async function syncToSupabase() {
+  try {
+    const now = Date.now();
+    if (now - _lastSyncTime < _syncInterval) return; // Evitar sync demasiado frecuente
+    
+    _lastSyncTime = now;
+    
+    const data = {
+      accs: accs,
+      vendedores: vendedores,
+      cfg: CFG,
+      redes: REDES
+    };
+    
+    console.log('📤 Sincronizando con Supabase...', {
+      accs: accs.length,
+      redes: REDES.length
+    });
+    
+    // Usar ruta relativa para Render
+    const response = await fetch('/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      console.log('✅ Datos sincronizados con Supabase:', result);
+    } else {
+      console.warn('⚠️ Error en sync:', response.status);
+    }
+  } catch(err) {
+    console.warn('⚠️ Error sincronizando:', err.message);
+  }
+}
+
+// Sincronizar cada 15 segundos automáticamente
+setInterval(syncToSupabase, 15000);
+
+// Sincronizar cuando el usuario hace cambios importantes
+window.addEventListener('beforeunload', syncToSupabase);
+
+// Función para cargar datos de Supabase al iniciar
+async function cargarDesdeSu pabase() {
+  try {
+    console.log('📥 Cargando datos de Supabase...');
+    
+    const response = await fetch('/sync');
+    if (!response.ok) throw new Error('Error cargando datos');
+    
+    const data = await response.json();
+    
+    // Cargar cuentas
+    if (data.accs && Array.isArray(data.accs) && data.accs.length > 0) {
+      accs = data.accs;
+      console.log('✅ Cuentas cargadas:', accs.length);
+    }
+    
+    // Cargar redes
+    if (data.redes && Array.isArray(data.redes) && data.redes.length > 0) {
+      REDES = data.redes;
+      console.log('✅ Redes cargadas:', REDES.length);
+    }
+    
+    // Cargar vendedores
+    if (data.vendedores && typeof data.vendedores === 'object') {
+      vendedores = data.vendedores;
+      console.log('✅ Vendedores cargados');
+    }
+    
+    // Cargar configuración
+    if (data.cfg && typeof data.cfg === 'object') {
+      CFG = { ...CFG, ...data.cfg };
+      console.log('✅ Configuración cargada');
+    }
+    
+  } catch(err) {
+    console.warn('⚠️ No se pudo cargar de Supabase:', err.message);
+  }
+}
+
+// Cargar datos de Supabase ANTES de renderizar
+cargarDesdeSu pabase().then(() => {
+  renderAll();
+  syncToSupabase(); // Sincronizar inmediatamente después
+});
+
+window.addEventListener('load', function(){
     // ✅ PRIMERO: Verificar conexión al servidor (con protección)
     if(typeof checkServer === 'function') {
       try {
