@@ -768,6 +768,22 @@ let vendedores = {
 
 let accs = [];
 
+// ============================================================
+// ✅ INTERCEPTAR localStorage PARA SINCRONIZAR AUTOMÁTICAMENTE
+// ============================================================
+const originalSetItem = Storage.prototype.setItem;
+Storage.prototype.setItem = function(key, value) {
+  originalSetItem.call(this, key, value);
+  
+  // Cuando se guarda algo importante, sincronizar
+  if(key === 'cashazo_accounts' || key === 'dmin_cfg' || key === 'REDES_data') {
+    console.log('💾 Datos guardados en localStorage → Sincronizando a Supabase');
+    // Forzar sincronización inmediata
+    _lastSyncTime = 0; // Reset timer
+    setTimeout(() => syncToSupabase(), 100);
+  }
+};
+
 // ✅ NUEVOS ARRAYS PARA CARACTERÍSTICAS ADICIONALES
 window.socios = window.socios || [];  // Socios expandibles con comisiones
 window.liquidaciones = window.liquidaciones || [
