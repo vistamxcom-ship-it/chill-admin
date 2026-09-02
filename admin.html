@@ -3311,7 +3311,6 @@ function guardarCfg(){
   }
 }
 
-
 function agregarVendedorCfg(){
   const input = document.getElementById('cfg-nuevo-vendedor');
   const nombre = input?.value?.trim();
@@ -4294,7 +4293,6 @@ window.recalcularTodosDesdeCero = function() {
   renderAll();
 };
 
-
 function regRapido(id, tipo){
   const idStr=String(id);
   const a=accs.find(x=>String(x.id)===idStr);
@@ -4720,60 +4718,6 @@ function viewDoc(clienteId, docKey) {
   });
 }
 
-
-function uploadDoc(clienteId, docKey) {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'image/*,application/pdf';
-  input.onchange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    try {
-      // Guardar en IndexedDB
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const db = await _openIDB();
-        const tx = db.transaction(_IDB_STORE, 'readwrite');
-        const store = tx.objectStore(_IDB_STORE);
-        
-        const docId = clienteId + '-' + docKey;
-        const docData = {
-          id: docId,
-          clienteId,
-          key: docKey,
-          filename: file.name,
-          size: file.size,
-          type: file.type,
-          data: event.target.result,
-          timestamp: new Date().toISOString()
-        };
-        
-        await store.put(docData);
-        
-        // Actualizar UI
-        const statusEl = document.getElementById('doc-status-' + clienteId + '-' + docKey);
-        if (statusEl) {
-          statusEl.textContent = '✓ ' + file.name;
-          statusEl.style.color = 'var(--grn)';
-        }
-        
-        // Guardar en cliente
-        if(!cli.documentos) cli.documentos = {};
-        cli.documentos[docKey] = {filename: file.name, size: file.size, timestamp: new Date().toISOString()};
-        guardarPerfil(clienteId);
-        
-        console.log('✅ Documento guardado:', docKey);
-      };
-      reader.readAsArrayBuffer(file);
-    } catch(err) {
-      alert('❌ Error al guardar documento: ' + err.message);
-      console.error(err);
-    }
-  };
-  input.click();
-}
-
 function formatBytes(bytes){
   if(bytes===0) return '0 B';
   const k=1024;
@@ -4985,7 +4929,6 @@ function onDocFileSelected(id,input){
   input.value='';
 }
 
-
 function viewClientDoc(id,key){
   // ✅ Buscar en cliente.documentos PRIMERO (está en accs)
   const cliente = accs.find(x=>x.id===id) || accs.find(x=>x.id===parseInt(id));
@@ -5066,15 +5009,8 @@ function abrirDocumento(srcData, type, name){
   }
 }
 
-
 // Función auxiliar para abrir documento en nueva pestaña
-function abrirDocumento(srcData, type, name){
-  try{
-    const w = window.open('', '_blank');
-    if(!w){
-      alert('❌ Popup bloqueado. Intenta abrir en otra ventana.');
-      return;
-    }
+
     
     if(type && type.startsWith('video/')){
       w.document.write(`<body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh"><video src="${srcData}" controls style="max-width:100%;max-height:100vh;border-radius:8px"></video></body>`);
@@ -5091,15 +5027,8 @@ function abrirDocumento(srcData, type, name){
   }
 }
 
-
 // Función auxiliar para abrir documento en nueva pestaña
-function abrirDocumento(srcData, type, name){
-  try{
-    const w = window.open('', '_blank');
-    if(!w){
-      alert('❌ Popup bloqueado. Intenta abrir en otra ventana.');
-      return;
-    }
+
     
     if(type && type.startsWith('video/')){
       w.document.write(`<body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh"><video src="${srcData}" controls style="max-width:100%;max-height:100vh"></video></body>`);
@@ -7691,7 +7620,6 @@ async function enviarSMSReal(telefono, mensaje){
 
 function esperar(ms){ return new Promise(r=>setTimeout(r,ms)); }
 
-
 // ============================================================
 // EJECUTAR AUTOMATIZACIÓN AHORA (BOTÓN RÁPIDO)
 // ============================================================
@@ -7802,7 +7730,6 @@ window.limpiarYRecalcularMoraDeVerdad = function() {
 // ✅ DESACTIVADO: localStorage - NO carga datos viejos
 // ✅ DESACTIVADO: checkServer/fetch - NO intenta conectar con servidor
 // ✅ DESACTIVADO: cargarSolicitudes - NO carga datos externos
-
 
 // ============================================================
 // VENDEDORES - DETALLE COMPLETO CON COMISIONES Y EXPANDIBLE
@@ -9093,7 +9020,6 @@ window.liquidarRed = function(redNombre) {
   alert(`✓ Red liquidada y registrada en Liquidaciones!\n\n- Red: ${redNombre}\n- Cuentas: ${cuentasRed.length}\n- Total adeudado: $${totalAdeudado.toFixed(2)}\n- Fecha: ${fechaLiq}`);
 };
 
-
 window.liquidarICE = function(clienteId) {
   const cli = accs.find(a => a.id === clienteId && a.type === 'congelada');
   if(!cli) return;
@@ -10347,7 +10273,6 @@ window.addEventListener('load', function(){
   };
 
   console.log('✅ Sincronización en vivo con Supabase activada (cada 15s)');
-})();
 </script>
 </body>
 </html>
