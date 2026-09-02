@@ -4597,6 +4597,123 @@ function uploadDoc(clienteId, docKey) {
     if (!file) return;
     
     try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        // Guardar en IndexedDB
+        const db = await _openIDB();
+        const tx = db.transaction(_IDB_STORE, 'readwrite');
+        const store = tx.objectStore(_IDB_STORE);
+        
+        const docId = clienteId + '-' + docKey;
+        const docData = {
+          id: docId,
+          clienteId,
+          key: docKey,
+          filename: file.name,
+          size: file.size,
+          type: file.type,
+          data: event.target.result,
+          timestamp: new Date().toISOString()
+        };
+        
+        store.put(docData);
+        
+        // Actualizar UI inmediatamente
+        const statusEl = document.getElementById('doc-status-' + clienteId + '-' + docKey);
+        if (statusEl) {
+          statusEl.innerHTML = '✓ ' + file.name.substring(0, 20);
+          statusEl.style.color = 'var(--grn)';
+        }
+        
+        // Guardar en cliente.documentos
+        const cliente = accs.find(a => a.id === clienteId);
+        if(cliente) {
+          if(!cliente.documentos) cliente.documentos = {};
+          cliente.documentos[docKey] = {
+            filename: file.name,
+            size: file.size,
+            type: file.type,
+            timestamp: new Date().toISOString()
+          };
+          guardarPerfil(clienteId);
+        }
+        
+        console.log('✅ Documento guardado:', docKey);
+      };
+      reader.readAsArrayBuffer(file);
+    } catch(err) {
+      alert('❌ Error al guardar: ' + err.message);
+      console.error(err);
+    }
+  };
+  input.click();
+}
+
+// ✅ FUNCIÓN PARA VER DOCUMENTOS CARGADOS
+function viewDoc(clienteId, docKey) {
+  const cliente = accs.find(a => a.id === clienteId);
+  if(!cliente || !cliente.documentos || !cliente.documentos[docKey]) {
+    alert('No hay documento cargado');
+    return;
+  }
+  
+  const docMeta = cliente.documentos[docKey];
+  
+  // Traer de IndexedDB y mostrar
+  _openIDB().then(db => {
+    const tx = db.transaction(_IDB_STORE, 'readonly');
+    const store = tx.objectStore(_IDB_STORE);
+    const req = store.get(clienteId + '-' + docKey);
+    
+    req.onsuccess = () => {
+      const docData = req.result;
+      if(!docData || !docData.data) {
+        alert('No se pudo cargar el documento');
+        return;
+      }
+      
+      // Crear blob y abrir en nueva pestaña o modal
+      const blob = new Blob([docData.data], {type: docData.type});
+      const url = URL.createObjectURL(blob);
+      
+      if(docData.type.startsWith('image/')) {
+        // Para imágenes, mostrar en modal
+        const modal = document.createElement('div');
+        modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;z-index:99999;cursor:pointer';
+        modal.onclick = () => modal.remove();
+        
+        const img = document.createElement('img');
+        img.src = url;
+        img.style.cssText = 'max-width:90%;max-height:90%;border-radius:8px';
+        
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = '✕';
+        closeBtn.style.cssText = 'position:absolute;top:20px;right:20px;background:#fff;border:none;width:40px;height:40px;border-radius:50%;font-size:20px;cursor:pointer';
+        closeBtn.onclick = () => modal.remove();
+        
+        modal.appendChild(img);
+        modal.appendChild(closeBtn);
+        document.body.appendChild(modal);
+      } else {
+        // Para PDFs, abrir en nueva pestaña
+        window.open(url);
+      }
+    };
+  }).catch(err => {
+    alert('Error: ' + err.message);
+  });
+}
+
+
+function uploadDoc(clienteId, docKey) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*,application/pdf';
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    try {
       // Guardar en IndexedDB
       const reader = new FileReader();
       reader.onload = async (event) => {
