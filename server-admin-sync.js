@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
-const WebSocket = require('ws');
 require('dotenv').config();
 
 const app = express();
@@ -16,12 +15,10 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
   process.exit(1);
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-  realtime: { transport: WebSocket }
-});
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 app.use(cors());
-app.use(express.json({ limit: '100mb' })); // ✅ Aumentado a 100mb para base64
+app.use(express.json({ limit: '100mb' })); // ✅ Aumentado para documentos base64
 
 // Desactivar caché
 app.use((req, res, next) => {
@@ -34,78 +31,44 @@ app.use((req, res, next) => {
 app.use(express.static(__dirname, { etag: false, lastModified: false }));
 
 // ============================================================================
-// POST /sync — Guardar datos + documentos
+// POST /sync — Guardar datos en Supabase (DIRECTAMENTE como JSONB)
 // ============================================================================
 app.post('/sync', async (req, res) => {
   try {
     const { accs, vendedores, cfg, redes } = req.body;
     
-    console.log('📥 POST /sync recibido');
+    console.log('📥 POST /sync recibido:', {
+      accs: Array.isArray(accs) ? accs.length : 0,
+      redes: Array.isArray(redes) ? redes.length : 0,
+      vendedores: Object.keys(vendedores || {}).length
+    });
     
     if (!Array.isArray(accs)) {
       return res.status(400).json({ success: false, error: 'accs debe ser array' });
     }
     
-    // ✅ PASO 1: Guardar datos principales (sin documentos)
-    const accsLimpios = accs.map(acc => {
-      const { documentos, ...resto } = acc;
-      return resto; // ✅ Remover documentos de accs_data
-    });
-    
-    const { error: backupError } = await supabase
+    // ✅ GUARDAR DIRECTAMENTE COMO JSONB (sin JSON.stringify)
+    const { error } = await supabase
       .from('backup')
       .upsert({
         id: 'main',
-        accs_data: accsLimpios, // ✅ Sin base64
+        accs_data: accs, // ✅ Supabase lo convierte a JSONB automáticamente
         vendedores_data: vendedores || {},
         config_data: cfg || {},
         redes_data: redes || [],
         updated_at: new Date().toISOString()
       }, { onConflict: 'id' });
     
-    if (backupError) {
-      console.error('❌ Error guardando backup:', backupError.message);
-      return res.status(500).json({ success: false, error: backupError.message });
+    if (error) {
+      console.error('❌ Error UPSERT:', error.message);
+      return res.status(500).json({ success: false, error: error.message });
     }
     
-    console.log('✅ Datos guardados en backup');
-    
-    // ✅ PASO 2: Guardar documentos en tabla separada
-    let docsGuardados = 0;
-    for (const acc of accs) {
-      if (acc.documentos && Object.keys(acc.documentos).length > 0) {
-        for (const [docKey, docData] of Object.entries(acc.documentos)) {
-          const docId = `${acc.id}_${docKey}`;
-          
-          const { error: docError } = await supabase
-            .from('documentos')
-            .upsert({
-              id: docId,
-              cliente_id: acc.id,
-              doc_key: docKey,
-              filename: docData.name,
-              file_type: docData.type,
-              file_size: docData.size,
-              base64_data: docData.base64, // ✅ Base64 en tabla separada
-              fecha: docData.fecha,
-              hora: docData.hora
-            }, { onConflict: 'cliente_id, doc_key' });
-          
-          if (!docError) docsGuardados++;
-          else console.warn(`⚠️ Error guardando doc ${docKey}:`, docError.message);
-        }
-      }
-    }
-    
-    console.log(`✅ ${docsGuardados} documentos guardados`);
-    
-    return res.json({
+    console.log('✅ Datos guardados en Supabase');
+    return res.json({ 
       success: true,
-      guardado: {
-        cuentas: accs.length,
-        documentos: docsGuardados,
-        timestamp: new Date().toISOString()
-      }
+      cuentas: accs.length,
+      documentos: accs.reduce((sum, a) => sum + Object.keys(a.documentos || {}).length, 0)
     });
     
   } catch (err) {
@@ -115,68 +78,50 @@ app.post('/sync', async (req, res) => {
 });
 
 // ============================================================================
-// GET /sync — Traer datos + documentos
+// GET /sync — Traer datos desde Supabase (DIRECTAMENTE como objetos)
 // ============================================================================
 app.get('/sync', async (req, res) => {
   try {
-    // ✅ PASO 1: Traer datos principales
-    const { data: backupData, error: backupError } = await supabase
+    const { data, error } = await supabase
       .from('backup')
       .select('*')
       .eq('id', 'main')
       .single();
     
-    if (backupError && backupError.code !== 'PGRST116') {
-      console.error('❌ Error GET backup:', backupError.message);
-      return res.status(500).json({ error: backupError.message });
+    if (error && error.code === 'PGRST116') {
+      console.log('ℹ️ Sin datos, devolviendo vacío');
+      return res.json({ 
+        accs: [], 
+        vendedores: {}, 
+        cfg: {}, 
+        redes: []
+      });
     }
     
-    let accs = backupData?.accs_data || [];
-    
-    // ✅ PASO 2: Traer documentos y agregarlos a cada cuenta
-    if (accs.length > 0) {
-      const clienteIds = accs.map(acc => acc.id);
-      
-      const { data: docsData, error: docsError } = await supabase
-        .from('documentos')
-        .select('*')
-        .in('cliente_id', clienteIds);
-      
-      if (!docsError && docsData && docsData.length > 0) {
-        // Agrupar documentos por cliente
-        accs = accs.map(acc => {
-          const docsDelCliente = {};
-          docsData.forEach(doc => {
-            if (doc.cliente_id === acc.id) {
-              docsDelCliente[doc.doc_key] = {
-                name: doc.filename,
-                type: doc.file_type,
-                size: doc.file_size,
-                base64: doc.base64_data, // ✅ Traer base64
-                fecha: doc.fecha,
-                hora: doc.hora
-              };
-            }
-          });
-          
-          return {
-            ...acc,
-            documentos: docsDelCliente // ✅ Agregar documentos a la cuenta
-          };
-        });
-        
-        console.log(`✅ ${docsData.length} documentos traídos`);
-      }
+    if (error) {
+      console.error('❌ Error GET /sync:', error.message);
+      return res.status(500).json({ error: error.message });
     }
     
-    console.log('✅ Datos traídos de Supabase');
-    return res.json({
-      accs,
-      vendedores: backupData?.vendedores_data || {},
-      cfg: backupData?.config_data || {},
-      redes: backupData?.redes_data || [],
-      updated_at: backupData?.updated_at
+    if (!data) {
+      return res.json({ accs: [], vendedores: {}, cfg: {}, redes: [] });
+    }
+    
+    // ✅ LEER DIRECTAMENTE COMO OBJETOS (sin necesidad de parsear)
+    const response = {
+      accs: Array.isArray(data.accs_data) ? data.accs_data : [],
+      vendedores: typeof data.vendedores_data === 'object' ? data.vendedores_data : {},
+      cfg: typeof data.config_data === 'object' ? data.config_data : {},
+      redes: Array.isArray(data.redes_data) ? data.redes_data : [],
+      updated_at: data.updated_at
+    };
+    
+    console.log('✅ Datos traídos de Supabase:', {
+      accs: response.accs.length,
+      redes: response.redes.length
     });
+    
+    return res.json(response);
     
   } catch (err) {
     console.error('❌ GET /sync error:', err.message);
@@ -185,7 +130,7 @@ app.get('/sync', async (req, res) => {
 });
 
 // ============================================================================
-// GET /api/health — Verificar salud
+// GET /api/health — Verificar estado
 // ============================================================================
 app.get('/api/health', async (req, res) => {
   try {
@@ -194,11 +139,9 @@ app.get('/api/health', async (req, res) => {
       .select('count')
       .limit(1);
     
-    const isConnected = !error;
-    
     return res.json({
-      status: isConnected ? 'ok' : 'error',
-      supabase: isConnected ? 'connected' : 'disconnected',
+      status: error ? 'error' : 'ok',
+      supabase: error ? 'disconnected' : 'connected',
       timestamp: new Date().toISOString()
     });
   } catch (err) {
@@ -223,10 +166,10 @@ app.get('/', (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`
 ╔════════════════════════════════════════╗
-║   ✅ CASHAZO SERVER ONLINE             ║
-║   Port: ${PORT}                             
-║   Supabase: ${SUPABASE_URL ? '🟢 OK' : '🔴 Error'}               
-║   Documentos: ✅ Tabla separada        ║
+║   ✅ CASHAZO SERVER - SINCRONIZACIÓN   ║
+║   Puerto: ${PORT}                           
+║   Supabase: ${SUPABASE_URL ? '🟢 OK' : '🔴 Error'}                 
+║   Admin: http://localhost:${PORT}           
 ╚════════════════════════════════════════╝
   `);
 });
