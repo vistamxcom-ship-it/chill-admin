@@ -4942,6 +4942,10 @@ function onDocFileSelected(id,input){
         if(grid) grid.innerHTML = renderDocGrid(id);
         agregarLog('✅ Documento guardado: '+file.name+' ('+formatBytes(file.size)+')');
         
+        // ✅ Sincronizar inmediatamente (no esperar 15 segundos)
+        _lastSyncTime = 0; // Reset timer para forzar sync
+        setTimeout(() => syncToSupabase(), 500);
+        
         // ✅ Sincronizar inmediatamente a Supabase
         syncToSupabase();
       }
@@ -9558,21 +9562,41 @@ const _syncInterval = 15 * 1000; // 15 segundos
 async function syncToSupabase() {
   try {
     const now = Date.now();
-    if (now - _lastSyncTime < _syncInterval) return; // Evitar sync demasiado frecuente
+    if (now - _lastSyncTime < _syncInterval) return;
     
     _lastSyncTime = now;
     
-    // ✅ Agregar documentos a cada cuenta ANTES de sincronizar
-    const accsConDocs = accs.map(cuenta => {
-      const docs = getClientDocs(cuenta.id);
+    // ✅ IMPORTANTE: Leer documentos DE INDEXEDDB y agregarlos a cada cuenta
+    const accsConDocs = await Promise.all(accs.map(async (cuenta) => {
+      let docs = _docsCache[cuenta.clientNum] || {};
+      
+      // Si no está en caché, intentar cargar de IndexedDB
+      if (Object.keys(docs).length === 0) {
+        try {
+          const db = await _openIDB();
+          const tx = db.transaction(_IDB_STORE, 'readonly');
+          const req = tx.objectStore(_IDB_STORE).get('client_'+cuenta.clientNum);
+          
+          await new Promise((resolve, reject) => {
+            req.onsuccess = () => {
+              docs = req.result ? (req.result.docs || {}) : {};
+              resolve();
+            };
+            req.onerror = reject;
+          });
+        } catch(e) {
+          console.warn('Error cargando docs de IDB:', e);
+        }
+      }
+      
       return {
         ...cuenta,
-        documentos: docs // Incluir documentos en la sincronización
+        documentos: docs // ✅ Incluir documentos en la sincronización
       };
-    });
+    }));
     
     const data = {
-      accs: accsConDocs,  // ✅ Ahora incluye documentos
+      accs: accsConDocs,
       vendedores: vendedores,
       cfg: CFG,
       redes: REDES
@@ -9580,11 +9604,10 @@ async function syncToSupabase() {
     
     console.log('📤 Sincronizando con Supabase...', {
       accs: accs.length,
-      redes: REDES.length,
-      docs: accs.reduce((sum, c) => sum + Object.keys(getClientDocs(c.id)).length, 0)
+      docs_total: accsConDocs.reduce((sum, c) => sum + Object.keys(c.documentos || {}).length, 0),
+      redes: REDES.length
     });
     
-    // Usar ruta relativa para Render
     const response = await fetch('/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -9593,7 +9616,7 @@ async function syncToSupabase() {
     
     if (response.ok) {
       const result = await response.json();
-      console.log('✅ Datos sincronizados con Supabase:', result);
+      console.log('✅ Datos + documentos sincronizados con Supabase:', result);
     } else {
       console.warn('⚠️ Error en sync:', response.status);
     }
