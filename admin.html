@@ -768,22 +768,6 @@ let vendedores = {
 
 let accs = [];
 
-// ============================================================
-// ✅ INTERCEPTAR localStorage PARA SINCRONIZAR AUTOMÁTICAMENTE
-// ============================================================
-const originalSetItem = Storage.prototype.setItem;
-Storage.prototype.setItem = function(key, value) {
-  originalSetItem.call(this, key, value);
-  
-  // Cuando se guarda algo importante, sincronizar
-  if(key === 'cashazo_accounts' || key === 'dmin_cfg' || key === 'REDES_data') {
-    console.log('💾 Datos guardados en localStorage → Sincronizando a Supabase');
-    // Forzar sincronización inmediata
-    _lastSyncTime = 0; // Reset timer
-    setTimeout(() => syncToSupabase(), 100);
-  }
-};
-
 // ✅ NUEVOS ARRAYS PARA CARACTERÍSTICAS ADICIONALES
 window.socios = window.socios || [];  // Socios expandibles con comisiones
 window.liquidaciones = window.liquidaciones || [
@@ -3269,48 +3253,79 @@ function importarBackup(){
 }
 
 function guardarCfg(){
+  CFG.adminUser=document.getElementById('cfg-user').value.trim()||CFG.adminUser;
+  CFG.adminPass=document.getElementById('cfg-pass').value||CFG.adminPass;
+  CFG.waAdmin=document.getElementById('cfg-wa').value.trim();
+  CFG.smsAdmin=document.getElementById('cfg-sms').value.trim();
+  CFG.waNegocio=(document.getElementById('cfg-wa-neg')||{}).value?.trim()||CFG.waNegocio||'';
+  CFG.botContactoNum=(document.getElementById('cfg-contacto-num')||{}).value?.trim()||CFG.botContactoNum||'';
+  CFG.refOXXO=(document.getElementById('cfg-ref-oxxo')||{}).value?.trim()||'';
+  CFG.refSPEI=(document.getElementById('cfg-ref-spei')||{}).value?.trim()||'';
+  CFG.botUrl=document.getElementById('cfg-bot').value.trim();
+  CFG.botLabel=document.getElementById('cfg-botlbl').value.trim()||'nuestro canal de atención';
+  CFG.botPlatform=(document.getElementById('cfg-botplat')||{}).value||'wa';
+  CFG.serverUrl=document.getElementById('cfg-server')?document.getElementById('cfg-server').value.trim()||'http://localhost:3000':CFG.serverUrl;
+  CFG.nombreNegocio=document.getElementById('cfg-nom').value.trim()||CFG.nombreNegocio;
+  CFG.tasaDefecto=parseFloat(document.getElementById('cfg-tasa').value)||50;
+  CFG.solicitudUrl=document.getElementById('cfg-sol').value.trim();
+  CFG.botActivo=(document.getElementById('cfg-bot-activo')||{}).checked||CFG.botActivo;
+  CFG.botIntervaloMin=parseInt((document.getElementById('cfg-bot-intv')||{}).value||60)||60;
+  CFG.botLlamarDias=parseInt((document.getElementById('cfg-bot-dias')||{}).value||3)||3;
+  CFG.botLlamarRefs=(document.getElementById('cfg-bot-refs')||{}).checked!==false;
+  CFG.twilioServer=(document.getElementById('cfg-twilio-server')||{}).value?.trim()||'http://localhost:3000';
+  CFG.twilioSid=(document.getElementById('twilio_sid')||{}).value?.trim()||'';
+  CFG.twilioToken=(document.getElementById('twilio_token')||{}).value?.trim()||'';
+  CFG.twilioSms=(document.getElementById('twilio_number_sms')||{}).value?.trim()||'';
+  CFG.twilioWa=(document.getElementById('twilio_number_wa')||{}).value?.trim()||'';
+  
+  // ✅ GUARDAR LOCALMENTE PRIMERO (INSTANTÁNEO)
   try {
-    // Obtener valores con validación
-    const user = document.getElementById('cfg-user');
-    const pass = document.getElementById('cfg-pass');
-    const nom = document.getElementById('cfg-nom');
-    const tasa = document.getElementById('cfg-tasa');
-    const sol = document.getElementById('cfg-sol');
-    
-    if(user) CFG.adminUser = user.value.trim() || CFG.adminUser;
-    if(pass) CFG.adminPass = pass.value || CFG.adminPass;
-    if(nom) CFG.nombreNegocio = nom.value.trim() || CFG.nombreNegocio;
-    if(tasa) CFG.tasaDefecto = parseFloat(tasa.value) || 50;
-    if(sol) CFG.solicitudUrl = sol.value.trim();
-    
-    // Guardar en localStorage INMEDIATAMENTE
     localStorage.setItem('dmin_cfg', JSON.stringify(CFG));
-    
-    // Mostrar confirmación
-    const msgEl = document.getElementById('cfg-msg');
-    if(msgEl) {
-      msgEl.textContent = '✓ Configuración guardada';
-      msgEl.style.color = 'var(--grn)';
-      setTimeout(() => { msgEl.textContent = ''; }, 3000);
-    }
-    
-    // Sincronizar con servidor en background (no bloquear)
-    setTimeout(() => {
-      saveData(); // Usar la función saveData existente para sincronizar TODO
-    }, 100);
-    
-    console.log('✅ Configuración guardada:', CFG);
-    
-  } catch(err) {
-    console.error('❌ Error en guardarCfg:', err);
-    const msgEl = document.getElementById('cfg-msg');
-    if(msgEl) {
-      msgEl.textContent = '❌ Error al guardar';
-      msgEl.style.color = 'var(--red)';
-    }
+  } catch(e) {}
+  
+  if(typeof persist !== 'undefined') {
+    persist.saveConfig();
   }
+  
+  // Mostrar mensaje INMEDIATAMENTE (no esperar al servidor)
+  document.getElementById('cfg-msg').textContent='✓ Configuración guardada';
+  document.getElementById('cfg-msg').style.color='var(--grn)';
+  setTimeout(()=>document.getElementById('cfg-msg').textContent='',3000);
+  
+  // 🔄 EN BACKGROUND: sincronizar a Supabase (SIN BLOQUEAR)
+  // ✅ FIX: usar ruta relativa '/sync' (igual que saveData) en vez de CFG.serverUrl,
+  // que por defecto apunta a http://localhost:3000 y falla en producción.
+  setTimeout(() => {
+    fetch('/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        accs: accs,
+        vendedores: vendedores,
+        cfg: CFG,
+        redes: (typeof REDES !== 'undefined' ? REDES : [])
+      })
+    })
+    .then(res => {
+      if (res.ok) {
+        console.log('✅ Config sincronizada con Supabase en background');
+      } else {
+        console.error('❌ Error al sincronizar config, status:', res.status);
+        document.getElementById('cfg-msg').textContent='⚠️ Guardado local, pero falló sync con servidor';
+        document.getElementById('cfg-msg').style.color='var(--red, #e05252)';
+      }
+    })
+    .catch(err => {
+      console.warn('⚠️ Sync background error (config está guardada localmente):', err.message);
+      document.getElementById('cfg-msg').textContent='⚠️ Guardado local, sin conexión al servidor';
+      document.getElementById('cfg-msg').style.color='var(--red, #e05252)';
+    });
+  }, 100); // Post en background, no bloquea
 }
 
+// ============================================================
+// GESTIÓN DE VENDEDORES
+// ============================================================
 function agregarVendedorCfg(){
   const input = document.getElementById('cfg-nuevo-vendedor');
   const nombre = input?.value?.trim();
@@ -4293,6 +4308,7 @@ window.recalcularTodosDesdeCero = function() {
   renderAll();
 };
 
+
 function regRapido(id, tipo){
   const idStr=String(id);
   const a=accs.find(x=>String(x.id)===idStr);
@@ -4600,124 +4616,6 @@ const DOC_SLOTS = [
   {key:'video',      label:'Video Prueba', icon:'🎥', accept:'video/*', isVideo:true},
 ];
 const DOC_MAX_SIZE = 500 * 1024 * 1024; // 500MB máximo por documento (sin límite efectivo)
-
-// ✅ FUNCIÓN PARA SUBIR DOCUMENTOS DEL CLIENTE
-function uploadDoc(clienteId, docKey) {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'image/*,application/pdf';
-  input.onchange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        // Guardar en IndexedDB
-        const db = await _openIDB();
-        const tx = db.transaction(_IDB_STORE, 'readwrite');
-        const store = tx.objectStore(_IDB_STORE);
-        
-        const docId = clienteId + '-' + docKey;
-        const docData = {
-          id: docId,
-          clienteId,
-          key: docKey,
-          filename: file.name,
-          size: file.size,
-          type: file.type,
-          data: event.target.result,
-          timestamp: new Date().toISOString()
-        };
-        
-        store.put(docData);
-        
-        // Actualizar UI inmediatamente
-        const statusEl = document.getElementById('doc-status-' + clienteId + '-' + docKey);
-        if (statusEl) {
-          statusEl.innerHTML = '✓ ' + file.name.substring(0, 20);
-          statusEl.style.color = 'var(--grn)';
-        }
-        
-        // Guardar en cliente.documentos
-        const cliente = accs.find(a => a.id === clienteId);
-        if(cliente) {
-          if(!cliente.documentos) cliente.documentos = {};
-          cliente.documentos[docKey] = {
-            filename: file.name,
-            size: file.size,
-            type: file.type,
-            timestamp: new Date().toISOString()
-          };
-          guardarPerfil(clienteId);
-        }
-        
-        console.log('✅ Documento guardado:', docKey);
-      };
-      reader.readAsArrayBuffer(file);
-    } catch(err) {
-      alert('❌ Error al guardar: ' + err.message);
-      console.error(err);
-    }
-  };
-  input.click();
-}
-
-// ✅ FUNCIÓN PARA VER DOCUMENTOS CARGADOS
-function viewDoc(clienteId, docKey) {
-  const cliente = accs.find(a => a.id === clienteId);
-  if(!cliente || !cliente.documentos || !cliente.documentos[docKey]) {
-    alert('No hay documento cargado');
-    return;
-  }
-  
-  const docMeta = cliente.documentos[docKey];
-  
-  // Traer de IndexedDB y mostrar
-  _openIDB().then(db => {
-    const tx = db.transaction(_IDB_STORE, 'readonly');
-    const store = tx.objectStore(_IDB_STORE);
-    const req = store.get(clienteId + '-' + docKey);
-    
-    req.onsuccess = () => {
-      const docData = req.result;
-      if(!docData || !docData.data) {
-        alert('No se pudo cargar el documento');
-        return;
-      }
-      
-      // Crear blob y abrir en nueva pestaña o modal
-      const blob = new Blob([docData.data], {type: docData.type});
-      const url = URL.createObjectURL(blob);
-      
-      if(docData.type.startsWith('image/')) {
-        // Para imágenes, mostrar en modal
-        const modal = document.createElement('div');
-        modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;z-index:99999;cursor:pointer';
-        modal.onclick = () => modal.remove();
-        
-        const img = document.createElement('img');
-        img.src = url;
-        img.style.cssText = 'max-width:90%;max-height:90%;border-radius:8px';
-        
-        const closeBtn = document.createElement('button');
-        closeBtn.textContent = '✕';
-        closeBtn.style.cssText = 'position:absolute;top:20px;right:20px;background:#fff;border:none;width:40px;height:40px;border-radius:50%;font-size:20px;cursor:pointer';
-        closeBtn.onclick = () => modal.remove();
-        
-        modal.appendChild(img);
-        modal.appendChild(closeBtn);
-        document.body.appendChild(modal);
-      } else {
-        // Para PDFs, abrir en nueva pestaña
-        window.open(url);
-      }
-    };
-  }).catch(err => {
-    alert('Error: ' + err.message);
-  });
-}
-
 function formatBytes(bytes){
   if(bytes===0) return '0 B';
   const k=1024;
@@ -4800,31 +4698,15 @@ function saveClientDocs(id, docs){
 function renderDocGrid(id){
   const docs=getClientDocs(id);
   return DOC_SLOTS.map(slot=>{
-    const doc=docs[slot.key];
-    const hasDoc=!!doc;
+    const doc=docs[slot.key];const hasDoc=!!doc;
     const cls='doc-card'+(hasDoc?(slot.isVideo?' has-video':' has-doc'):'');
     const name=doc?doc.name:'';
-    const tamaño=doc?`(${(doc.size/1024/1024).toFixed(1)}MB)`:''
+    const tamaño=doc?`(${(doc.size/1024/1024).toFixed(1)}MB)`:'';
     const delBtn=hasDoc?`<button class="doc-del" onclick="event.stopPropagation();deleteClientDoc(${id},'${slot.key}')" title="Eliminar">✕</button>`:'';
-    
-    // VERSIÓN MEJORADA: Botón VER siempre visible si hay documento
-    const verBtn = hasDoc ? `
-      <div style="display:flex;gap:4px;margin-top:6px;width:100%">
-        <button class="bg" style="flex:1;font-size:9px;padding:4px 8px;background:var(--grn);color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:600" onclick="event.stopPropagation();viewClientDoc(${id},'${slot.key}')" title="Ver documento">
-          👁️ VER
-        </button>
-      </div>
-    ` : '';
-    
     return `<div class="${cls}" onclick="triggerDocUpload('${id}','${slot.key}')" title="${hasDoc?'Click para reemplazar':'Click para subir'}">
-      ${delBtn}
-      <div class="doc-icon">${slot.icon}</div>
+      ${delBtn}<div class="doc-icon">${slot.icon}</div>
       <div class="doc-label">${slot.label}</div>
-      ${hasDoc?`
-        <div class="doc-name" style="font-weight:600;color:var(--grn)">${name}</div>
-        <div style="font-size:8px;color:var(--t3);margin-bottom:6px">${tamaño}</div>
-        ${verBtn}
-      `:`<div style="font-size:8px;color:var(--t3);font-family:var(--mono)">+ subir</div>`}
+      ${hasDoc?`<div class="doc-name">${name}</div><div style="font-size:8px;color:var(--t3);margin-bottom:3px">${tamaño}</div><div style="display:flex;gap:4px;margin-top:3px"><button class="bg" style="font-size:8px;padding:2px 6px" onclick="event.stopPropagation();viewClientDoc(${id},'${slot.key}')">VER</button></div>`:'<div style="font-size:8px;color:var(--t3);font-family:var(--mono)">+ subir</div>'}
     </div>`;
   }).join('');
 }
@@ -4844,7 +4726,7 @@ function onDocFileSelected(id,input){
     return;
   }
   
-  // Validar tamaño
+  // Validar tamaño (ahora 500MB sin límite efectivo)
   if(file.size > DOC_MAX_SIZE){
     alert('❌ Archivo muy grande (máx 500MB). Intenta con uno más pequeño.');
     input.value='';
@@ -4873,178 +4755,56 @@ function onDocFileSelected(id,input){
   }
   
   try{
-    // Leer el archivo como base64
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const arrayBuffer = e.target.result;
-      const bytes = new Uint8Array(arrayBuffer);
-      let binary = '';
-      for(let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
-      }
-      const base64Data = btoa(binary);
-      
-      // Guardar documento en la cuenta
+    const docs=getClientDocs(id);
+    // Guardar directamente como Blob (más eficiente para archivos grandes)
+    docs[key]={
+      name:file.name,
+      type:file.type,
+      size:file.size,
+      blob:file,
+      data:null, // Se llena cuando necesita visualizar
+      fecha:new Date().toLocaleDateString('es-MX'),
+      hora:new Date().toLocaleTimeString('es-MX')
+    };
+    if(saveClientDocs(id,docs)){
       const cliente = accs.find(x=>x.id===id) || accs.find(x=>x.id===parseInt(id));
-      if(!cliente) {
-        alert('❌ Cliente no encontrado');
-        return;
-      }
-      
-      // Guardar en cliente.documentos
-      if(!cliente.documentos) cliente.documentos = {};
-      cliente.documentos[key] = {
-        name: file.name,
-        type: file.type,
-        size: file.size,
-        base64: base64Data, // ✅ Guardado en base64
-        fecha: new Date().toLocaleDateString('es-MX'),
-        hora: new Date().toLocaleTimeString('es-MX')
-      };
-      
-      // Guardar en cliente también (para IndexedDB local)
-      const docs = getClientDocs(id);
-      docs[key] = cliente.documentos[key];
-      saveClientDocs(id, docs);
-      
-      // Renderizar grid
-      const gridId = cliente.clientNum || id;
-      const grid = document.getElementById('docs-grid-'+gridId);
-      if(grid) grid.innerHTML = renderDocGrid(id);
-      
+      const gridId = cliente ? cliente.clientNum : id;
+      const grid=document.getElementById('docs-grid-'+gridId);
+      if(grid) grid.innerHTML=renderDocGrid(id);
       agregarLog('✅ Documento guardado: '+file.name+' ('+formatBytes(file.size)+')');
-      
-      // ✅ GUARDAR INMEDIATAMENTE EN SUPABASE (dentro de accs)
-      guardarPerfil(id); // Esto guarda en accs y sincroniza
-    };
-    reader.onerror = () => {
-      alert('❌ Error al leer archivo');
-    };
-    reader.readAsArrayBuffer(file);
-    
+    }
   }catch(err){
     console.error('Error procesando documento:',err);
     alert('❌ Error: '+err.message);
   }
   input.value='';
 }
-
 function viewClientDoc(id,key){
-  // ✅ Buscar en cliente.documentos PRIMERO (está en accs)
-  const cliente = accs.find(x=>x.id===id) || accs.find(x=>x.id===parseInt(id));
-  let doc = null;
-  
-  if(cliente && cliente.documentos && cliente.documentos[key]) {
-    doc = cliente.documentos[key];
-    console.log('✅ Documento encontrado en cliente.documentos:', key);
-  } else {
-    // Fallback: buscar en IndexedDB
-    const docs = getClientDocs(id);
-    doc = docs[key];
-    console.log('📦 Documento encontrado en IndexedDB:', key);
-  }
-  
-  if(!doc){
-    alert('❌ Documento no encontrado');
-    console.error('No se encontró documento:', key, 'en cliente:', cliente);
-    return;
-  }
-  
+  const docs=getClientDocs(id);const doc=docs[key];if(!doc) return;
   try{
-    let srcData = null;
+    const w=window.open('','_blank');
+    if(!w){alert('❌ Popup bloqueado. Abre en otra ventana.');return;}
     
-    // Convertir base64 a blob
-    if(doc.base64){
-      const bstr = atob(doc.base64);
-      const n = bstr.length;
-      const u8arr = new Uint8Array(n);
-      for(let i = 0; i < n; i++) {
-        u8arr[i] = bstr.charCodeAt(i);
-      }
-      const blob = new Blob([u8arr], {type: doc.type || 'application/octet-stream'});
-      srcData = URL.createObjectURL(blob);
-    }
-    else if(doc.blob){
-      srcData = URL.createObjectURL(doc.blob);
-    }
-    else if(doc.data){
-      const blob = new Blob([doc.data], {type: doc.type || 'application/octet-stream'});
-      srcData = URL.createObjectURL(blob);
-    }
-    
+    // Si el documento viene del nuevo sistema (blob), convertir a URL
+    const srcData = doc.data ? doc.data : (doc.blob ? URL.createObjectURL(doc.blob) : null);
     if(!srcData){
-      alert('❌ No se pueden cargar los datos del documento');
+      alert('❌ No hay datos del documento');
       return;
     }
     
-    abrirDocumento(srcData, doc.type, doc.name);
-    
+    if(doc.type&&doc.type.startsWith('video/')){
+      w.document.write(`<body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh"><video src="${srcData}" controls style="max-width:100%;max-height:100vh"></video></body>`);
+    } else if(doc.type&&doc.type.startsWith('image/')){
+      w.document.write(`<body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh"><img src="${srcData}" style="max-width:100%;max-height:100vh;object-fit:contain"></body>`);
+    } else if(doc.type==='application/pdf'){
+      w.document.write(`<body style="margin:0"><iframe src="${srcData}" style="width:100%;height:100vh;border:none"></iframe></body>`);
+    } else {
+      w.document.write(`<body style="margin:0"><embed src="${srcData}" type="${doc.type}" width="100%" height="100%"></body>`);
+    }
   }catch(e){
-    console.error('Error en viewClientDoc:', e);
     alert('❌ Error al abrir documento: '+e.message);
   }
 }
-
-// Función auxiliar para abrir documento en nueva pestaña
-function abrirDocumento(srcData, type, name){
-  try{
-    const w = window.open('', '_blank');
-    if(!w){
-      alert('❌ Popup bloqueado. Intenta abrir en otra ventana.');
-      return;
-    }
-    
-    if(type && type.startsWith('video/')){
-      w.document.write(`<body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh"><video src="${srcData}" controls style="max-width:100%;max-height:100vh;border-radius:8px"></video></body>`);
-    } else if(type && type.startsWith('image/')){
-      w.document.write(`<body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh"><img src="${srcData}" style="max-width:100%;max-height:100vh;object-fit:contain;border-radius:8px"></body>`);
-    } else if(type === 'application/pdf'){
-      w.document.write(`<body style="margin:0"><iframe src="${srcData}" style="width:100%;height:100vh;border:none"></iframe></body>`);
-    } else {
-      w.document.write(`<body style="margin:0"><embed src="${srcData}" type="${type}" width="100%" height="100%"></body>`);
-    }
-  }catch(e){
-    console.error('Error abriendo documento:', e);
-    alert('❌ Error al abrir: ' + e.message);
-  }
-}
-
-// Función auxiliar para abrir documento en nueva pestaña
-
-    
-    if(type && type.startsWith('video/')){
-      w.document.write(`<body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh"><video src="${srcData}" controls style="max-width:100%;max-height:100vh;border-radius:8px"></video></body>`);
-    } else if(type && type.startsWith('image/')){
-      w.document.write(`<body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh"><img src="${srcData}" style="max-width:100%;max-height:100vh;object-fit:contain;border-radius:8px"></body>`);
-    } else if(type === 'application/pdf'){
-      w.document.write(`<body style="margin:0"><iframe src="${srcData}" style="width:100%;height:100vh;border:none"></iframe></body>`);
-    } else {
-      w.document.write(`<body style="margin:0"><embed src="${srcData}" type="${type}" width="100%" height="100%"></body>`);
-    }
-  }catch(e){
-    console.error('Error abriendo documento:', e);
-    alert('❌ Error al abrir: ' + e.message);
-  }
-}
-
-// Función auxiliar para abrir documento en nueva pestaña
-
-    
-    if(type && type.startsWith('video/')){
-      w.document.write(`<body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh"><video src="${srcData}" controls style="max-width:100%;max-height:100vh"></video></body>`);
-    } else if(type && type.startsWith('image/')){
-      w.document.write(`<body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh"><img src="${srcData}" style="max-width:100%;max-height:100vh;object-fit:contain"></body>`);
-    } else if(type === 'application/pdf'){
-      w.document.write(`<body style="margin:0"><iframe src="${srcData}" style="width:100%;height:100vh;border:none"></iframe></body>`);
-    } else {
-      w.document.write(`<body style="margin:0"><embed src="${srcData}" type="${type}" width="100%" height="100%"></body>`);
-    }
-  }catch(e){
-    console.error('Error abriendo documento:', e);
-    alert('❌ Error al abrir: ' + e.message);
-  }
-}
-
 function deleteClientDoc(id,key){
   if(!confirm('¿Eliminar este documento?')) return;
   const docs=getClientDocs(id);delete docs[key];
@@ -7620,6 +7380,7 @@ async function enviarSMSReal(telefono, mensaje){
 
 function esperar(ms){ return new Promise(r=>setTimeout(r,ms)); }
 
+
 // ============================================================
 // EJECUTAR AUTOMATIZACIÓN AHORA (BOTÓN RÁPIDO)
 // ============================================================
@@ -7730,6 +7491,7 @@ window.limpiarYRecalcularMoraDeVerdad = function() {
 // ✅ DESACTIVADO: localStorage - NO carga datos viejos
 // ✅ DESACTIVADO: checkServer/fetch - NO intenta conectar con servidor
 // ✅ DESACTIVADO: cargarSolicitudes - NO carga datos externos
+
 
 // ============================================================
 // VENDEDORES - DETALLE COMPLETO CON COMISIONES Y EXPANDIBLE
@@ -8686,21 +8448,26 @@ window.mostrarPerfilClienteExp = function(clienteId) {
         <div style="background:var(--bg3);border:1px solid var(--brd);border-radius:8px;padding:15px;margin-bottom:20px">
           <div style="font-size:11px;color:var(--t3);text-transform:uppercase;font-weight:600;margin-bottom:12px">📄 DOCUMENTOS DEL CLIENTE</div>
           <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
-${(() => {
-              const slots = [
-                {key:'ine_front',  label:'INE Frente',   icon:'🪪'},
-                {key:'ine_back',   label:'INE Reverso',  icon:'🪪'},
-                {key:'comprobante',label:'Comprobante',  icon:'🏠'},
-                {key:'curp_doc',   label:'CURP Doc.',    icon:'📄'},
-              ];
-              return slots.map(s => `
-                <div style="background:var(--bg2);border:1px dashed var(--brd);border-radius:6px;padding:15px;text-align:center;cursor:pointer" onclick="uploadDoc('${cli.id}','${s.key}')">
-                  <div style="font-size:24px;margin-bottom:8px">${s.icon}</div>
-                  <div style="font-size:9px;color:var(--t3);text-transform:uppercase">${s.label}</div>
-                  <div style="font-size:9px;color:var(--grn);margin-top:8px" id="doc-status-${cli.id}-${s.key}">+ subir</div>
-                </div>
-              `).join('');
-            })()}
+            <div style="background:var(--bg2);border:1px dashed var(--brd);border-radius:6px;padding:15px;text-align:center;cursor:pointer">
+              <div style="font-size:24px;margin-bottom:8px">🪪</div>
+              <div style="font-size:9px;color:var(--t3);text-transform:uppercase">INE Frente</div>
+              <div style="font-size:9px;color:var(--grn);margin-top:8px">+ subir</div>
+            </div>
+            <div style="background:var(--bg2);border:1px dashed var(--brd);border-radius:6px;padding:15px;text-align:center;cursor:pointer">
+              <div style="font-size:24px;margin-bottom:8px">🪪</div>
+              <div style="font-size:9px;color:var(--t3);text-transform:uppercase">INE Reverso</div>
+              <div style="font-size:9px;color:var(--grn);margin-top:8px">+ subir</div>
+            </div>
+            <div style="background:var(--bg2);border:1px dashed var(--brd);border-radius:6px;padding:15px;text-align:center;cursor:pointer">
+              <div style="font-size:24px;margin-bottom:8px">🏠</div>
+              <div style="font-size:9px;color:var(--t3);text-transform:uppercase">Comprobante</div>
+              <div style="font-size:9px;color:var(--grn);margin-top:8px">+ subir</div>
+            </div>
+            <div style="background:var(--bg2);border:1px dashed var(--brd);border-radius:6px;padding:15px;text-align:center;cursor:pointer">
+              <div style="font-size:24px;margin-bottom:8px">📄</div>
+              <div style="font-size:9px;color:var(--t3);text-transform:uppercase">CURP Doc.</div>
+              <div style="font-size:9px;color:var(--grn);margin-top:8px">+ subir</div>
+            </div>
           </div>
         </div>
         
@@ -9019,6 +8786,7 @@ window.liquidarRed = function(redNombre) {
   
   alert(`✓ Red liquidada y registrada en Liquidaciones!\n\n- Red: ${redNombre}\n- Cuentas: ${cuentasRed.length}\n- Total adeudado: $${totalAdeudado.toFixed(2)}\n- Fecha: ${fechaLiq}`);
 };
+
 
 window.liquidarICE = function(clienteId) {
   const cli = accs.find(a => a.id === clienteId && a.type === 'congelada');
@@ -9536,142 +9304,7 @@ window.guardarPagoICE = function(clienteId) {
     });
   })();
 
-  
-
-// ============================================================
-// 🔄 SINCRONIZACIÓN AUTOMÁTICA CON SUPABASE
-// ============================================================
-let _lastSyncTime = 0;
-const _syncInterval = 15 * 1000; // 15 segundos
-
-// Función mejorada de sincronización
-async function syncToSupabase() {
-  try {
-    const now = Date.now();
-    if (now - _lastSyncTime < _syncInterval) return;
-    
-    _lastSyncTime = now;
-    
-    // ✅ IMPORTANTE: Leer documentos DE INDEXEDDB y agregarlos a cada cuenta
-    const accsConDocs = await Promise.all(accs.map(async (cuenta) => {
-      let docs = _docsCache[cuenta.clientNum] || {};
-      
-      // Si no está en caché, intentar cargar de IndexedDB
-      if (Object.keys(docs).length === 0) {
-        try {
-          const db = await _openIDB();
-          const tx = db.transaction(_IDB_STORE, 'readonly');
-          const req = tx.objectStore(_IDB_STORE).get('client_'+cuenta.clientNum);
-          
-          await new Promise((resolve, reject) => {
-            req.onsuccess = () => {
-              docs = req.result ? (req.result.docs || {}) : {};
-              resolve();
-            };
-            req.onerror = reject;
-          });
-        } catch(e) {
-          console.warn('Error cargando docs de IDB:', e);
-        }
-      }
-      
-      return {
-        ...cuenta,
-        documentos: docs // ✅ Incluir documentos en la sincronización
-      };
-    }));
-    
-    const data = {
-      accs: accsConDocs,
-      vendedores: vendedores,
-      cfg: CFG,
-      redes: REDES
-    };
-    
-    console.log('📤 Sincronizando con Supabase...', {
-      accs: accs.length,
-      docs_total: accsConDocs.reduce((sum, c) => sum + Object.keys(c.documentos || {}).length, 0),
-      redes: REDES.length
-    });
-    
-    const response = await fetch('/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
-    
-    if (response.ok) {
-      const result = await response.json();
-      console.log('✅ Datos + documentos sincronizados con Supabase:', result);
-    } else {
-      console.warn('⚠️ Error en sync:', response.status);
-    }
-  } catch(err) {
-    console.warn('⚠️ Error sincronizando:', err.message);
-  }
-}
-
-// Sincronizar cada 15 segundos automáticamente
-setInterval(syncToSupabase, 15000);
-
-// Sincronizar cuando el usuario hace cambios importantes
-window.addEventListener('beforeunload', syncToSupabase);
-
-// Función para cargar datos de Supabase al iniciar
-async function cargarDesdeSu pabase() {
-  try {
-    console.log('📥 Cargando datos de Supabase...');
-    
-    const response = await fetch('/sync');
-    if (!response.ok) throw new Error('Error cargando datos');
-    
-    const data = await response.json();
-    
-    // Cargar cuentas ✅ (ahora incluyen documentos)
-    if (data.accs && Array.isArray(data.accs) && data.accs.length > 0) {
-      accs = data.accs;
-      
-      // ✅ Cargar documentos de cada cuenta a IndexedDB
-      accs.forEach(cuenta => {
-        if (cuenta.documentos && Object.keys(cuenta.documentos).length > 0) {
-          saveClientDocs(cuenta.id, cuenta.documentos);
-          console.log('✅ Documentos cargados para:', cuenta.name);
-        }
-      });
-      
-      console.log('✅ Cuentas cargadas:', accs.length);
-    }
-    
-    // Cargar redes
-    if (data.redes && Array.isArray(data.redes) && data.redes.length > 0) {
-      REDES = data.redes;
-      console.log('✅ Redes cargadas:', REDES.length);
-    }
-    
-    // Cargar vendedores
-    if (data.vendedores && typeof data.vendedores === 'object') {
-      vendedores = data.vendedores;
-      console.log('✅ Vendedores cargados');
-    }
-    
-    // Cargar configuración
-    if (data.cfg && typeof data.cfg === 'object') {
-      CFG = { ...CFG, ...data.cfg };
-      console.log('✅ Configuración cargada');
-    }
-    
-  } catch(err) {
-    console.warn('⚠️ No se pudo cargar de Supabase:', err.message);
-  }
-}
-
-// Cargar datos de Supabase ANTES de renderizar
-cargarDesdeSu pabase().then(() => {
-  renderAll();
-  syncToSupabase(); // Sincronizar inmediatamente después
-});
-
-window.addEventListener('load', function(){
+  window.addEventListener('load', function(){
     // ✅ PRIMERO: Verificar conexión al servidor (con protección)
     if(typeof checkServer === 'function') {
       try {
@@ -10273,6 +9906,7 @@ window.addEventListener('load', function(){
   };
 
   console.log('✅ Sincronización en vivo con Supabase activada (cada 15s)');
+})();
 </script>
 </body>
 </html>
