@@ -1121,10 +1121,10 @@ function renderRes(){
   // Calcular colaboraciones, moratoria y % de utilidad
   const totalMora=act.reduce((s,a)=>s+(a.moraAcumulada||0),0);
   
-  // ✅ COLABORACIONES = Cuentas tipo "socio" activas (porque son colaboraciones con socios)
-  const totalColaboraciones=act.filter(a => a.type === 'socio' && a.status === 'activo').length;
+  // ✅ COLABORACIONES = Cuentas tipo "socio" activas (del array COMPLETO accs)
+  const totalColaboraciones=accs.filter(a => a.type === 'socio' && a.status === 'activo').length;
   
-  console.log('📊 TOTAL COLABORACIONES (Cuentas de Socio Activas):', totalColaboraciones);
+  console.log('📊 TOTAL COLABORACIONES (Cuentas de Socio Activas):', totalColaboraciones, 'de', accs.filter(a => a.type === 'socio').length, 'socios totales');
   
   // ✅ UTILIDAD CORRECTA = Interés Realmente Generado / Capital Total × 100
   // El interés se calcula como: capital × (rate/100)
@@ -2793,38 +2793,39 @@ async function syncToServer(){
   }
 }
 
-// DESACTIVADO - No carga datos del servidor
-/*
+// ✅ CARGAR DATOS DEL SERVIDOR (Supabase) AL INICIAR
 async function cargarClientesDelServidor(){
   if(!srvConnected) return;
   try{
+    console.log('📥 Cargando datos del servidor...');
     const resp = await fetch((CFG.serverUrl||'http://localhost:3000')+'/sync');
     const data = await resp.json();
     
-    if(data.accs && Array.isArray(data.accs)){
+    if(data.accs && Array.isArray(data.accs) && data.accs.length > 0){
       accs = data.accs;
+      console.log(`✅ ${accs.length} cuentas cargadas de Supabase`);
       
-      // Cargar vendedores SOLO si vienen no vacíos del servidor
-      if(data.vendedores && Array.isArray(data.vendedores) && data.vendedores.length > 0){
+      if(data.vendedores && typeof data.vendedores === 'object'){
         vendedores = data.vendedores;
-        // Actualizar el select de vendedores en el form
         actualizarSelectVendedores();
       }
       
-      // ✨ IMPORTANTE: Actualizar nxtId para evitar conflictos
-      if(data.proximoId){
-        nxtId = data.proximoId;
-        console.log(`✅ nxtId actualizado a ${nxtId} (servidor)`);
+      if(data.cfg && typeof data.cfg === 'object'){
+        Object.assign(CFG, data.cfg);
       }
       
-      console.log(`✅ ${accs.length} clientes cargados del servidor`);
+      if(data.redes && Array.isArray(data.redes)){
+        REDES = data.redes;
+      }
+      
       renderAll();
+    }else{
+      console.log('ℹ️ Sin datos en Supabase');
     }
   }catch(e){
-    console.warn('No se pudieron cargar clientes del servidor');
+    console.warn('❌ Error cargando del servidor:', e.message);
   }
 }
-*/
 
 async function loadPendientes(){
   if(!srvConnected) return;
