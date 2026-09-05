@@ -741,6 +741,40 @@ let prevPane = 'res';
 let calViewYear = TYR;
 let calViewMonth = TMON;
 
+// ✅ FUNCIONES HELPER PARA ASIGNACIONES SEGURAS
+const safeSetInnerHTML = (id, html) => {
+  const el = document.getElementById(id);
+  if(el) {
+    el.innerHTML = html;
+    return true;
+  } else {
+    console.warn(`⚠️ Elemento con id "${id}" no encontrado para innerHTML`);
+    return false;
+  }
+};
+
+const safeSetTextContent = (id, text) => {
+  const el = document.getElementById(id);
+  if(el) {
+    el.textContent = text;
+    return true;
+  } else {
+    console.warn(`⚠️ Elemento con id "${id}" no encontrado para textContent`);
+    return false;
+  }
+};
+
+const safeSetStyle = (id, prop, value) => {
+  const el = document.getElementById(id);
+  if(el) {
+    el.style[prop] = value;
+    return true;
+  } else {
+    console.warn(`⚠️ Elemento con id "${id}" no encontrado para style`);
+    return false;
+  }
+};
+
 // ============================================================
 // LISTA DE VENDEDORES (Vacío para que agregues los tuyos)
 // ============================================================
@@ -1045,38 +1079,72 @@ function showPane(id, btn){
   if(r[id]) r[id]();
 }
 function renderAll(){
-  // 🔥 VERDADERA REPARACIÓN: Limpiar y recalcular mora UNA SOLA VEZ al iniciar
-  if (!window._moraLimpiadaDeVerdad) {
-    if (typeof limpiarYRecalcularMoraDeVerdad === 'function') {
-      limpiarYRecalcularMoraDeVerdad();
+  try {
+    // 🔥 VERDADERA REPARACIÓN: Limpiar y recalcular mora UNA SOLA VEZ al iniciar
+    if (!window._moraLimpiadaDeVerdad) {
+      if (typeof limpiarYRecalcularMoraDeVerdad === 'function') {
+        limpiarYRecalcularMoraDeVerdad();
+      }
+      window._moraLimpiadaDeVerdad = true;
     }
-    window._moraLimpiadaDeVerdad = true;
+    
+    // 🔄 ASEGURAR QUE LIQUIDACIONES ESTÉN CARGADAS DESDE LOCALSTORAGE
+    loadLiquidacionesFromLocalStorage();
+    
+    // 🔧 REPARACIÓN AUTOMÁTICA: Limpiar moratorias de clientes que pagaron este mes
+    if (typeof limpiarMoratoriasDeClientesAlDia === 'function') {
+      limpiarMoratoriasDeClientesAlDia();
+    }
+    
+    console.log('🔄 renderAll: Iniciando...');
+    
+    syncToServer();
+    console.log('✅ renderAll: syncToServer completado');
+    
+    actualizarSelectVendedores();
+    console.log('✅ renderAll: actualizarSelectVendedores completado');
+    
+    actualizarSelectRedes();
+    console.log('✅ renderAll: actualizarSelectRedes completado');
+    
+    renderRes();
+    console.log('✅ renderAll: renderRes completado');
+    
+    if(typeof renderSoc==='function') renderSoc();
+    console.log('✅ renderAll: renderSoc completado');
+    
+    renderVnd();
+    console.log('✅ renderAll: renderVnd completado');
+    
+    renderCal();
+    console.log('✅ renderAll: renderCal completado');
+    
+    if(typeof renderRedes==='function') renderRedes();
+    console.log('✅ renderAll: renderRedes completado');
+    
+    if(typeof renderMXN==='function') renderMXN();
+    console.log('✅ renderAll: renderMXN completado');
+    
+    if(typeof renderUSD==='function') renderUSD();
+    console.log('✅ renderAll: renderUSD completado');
+    
+    if(typeof renderExp==='function') renderExp();
+    console.log('✅ renderAll: renderExp completado');
+    
+    if(typeof renderCong==='function') renderCong();
+    console.log('✅ renderAll: renderCong completado');
+    
+    if(typeof renderLiq==='function') renderLiq();
+    console.log('✅ renderAll: renderLiq completado');
+    
+    const r={cal:renderCal,mxn:renderMXN,usd:renderUSD,soc:renderSoc,vnd:renderVnd,red:renderRedes,act:renderAct,hoy:renderHoy,msg:renderMsg,bot:renderBot,liq:renderLiq,exp:renderExp,cong:renderCong};
+    if(r[curPane]) r[curPane]();
+    console.log('✅ renderAll: pane actual completado');
+    
+  } catch(e) {
+    console.error('❌ ERROR EN renderAll:', e.message);
+    console.error('Stack completo:', e.stack);
   }
-  
-  // 🔄 ASEGURAR QUE LIQUIDACIONES ESTÉN CARGADAS DESDE LOCALSTORAGE
-  loadLiquidacionesFromLocalStorage();
-  
-  // 🔧 REPARACIÓN AUTOMÁTICA: Limpiar moratorias de clientes que pagaron este mes
-  if (typeof limpiarMoratoriasDeClientesAlDia === 'function') {
-    limpiarMoratoriasDeClientesAlDia();
-  }
-  
-  syncToServer();
-  actualizarSelectVendedores(); // Actualizar dinámicamente los vendedores
-  actualizarSelectRedes(); // Actualizar dinámicamente las redes
-  renderRes();
-  // 🔧 SIEMPRE actualizar COMISIONES aunque no estés mirándolo
-  renderVnd();
-  // 🔧 SIEMPRE actualizar CALENDARIO aunque no estés mirándolo (para que pagos se vean verdes)
-  renderCal();
-  // 🔧 SIEMPRE actualizar REDES aunque no estés mirándolo (para que las cuentas registradas no desaparezcan)
-  if(typeof renderRedes==='function') renderRedes();
-  // 🔧 ARREGLO CRÍTICO: SIEMPRE actualizar MXN y USD aunque no estén visibles
-  if(typeof renderMXN==='function') renderMXN();
-  if(typeof renderUSD==='function') renderUSD();
-  // Re-renderizar el pane activo si no es res
-  const r={cal:renderCal,mxn:renderMXN,usd:renderUSD,soc:renderSoc,vnd:renderVnd,red:renderRedes,act:renderAct,hoy:renderHoy,msg:renderMsg,bot:renderBot};
-  if(r[curPane]) r[curPane]();
 }
 
 // ============================================================
@@ -1139,7 +1207,8 @@ function renderRes(){
   
   // Cargar pendientes del bot
   setTimeout(loadPendientes, 500);
-  document.getElementById('pane-res').innerHTML=`<div id="pendientes-box"></div>`+`
+  
+  const htmlContent = `<div id="pendientes-box"></div>`+`
     <div class="mrow">
       <div class="mc"><div class="mc-l">Cobrar hoy</div><div class="mc-v" style="color:var(--grn)">${fm(todayAmt,'MXN')}</div><div class="mc-s">${todayL.length} cuenta${todayL.length!==1?'s':''}</div></div>
       <div class="mc"><div class="mc-l">Vencidas</div><div class="mc-v" style="color:${ovdL.length>0?'var(--red)':'var(--t2)'}">${ovdL.length}</div></div>
@@ -1161,6 +1230,9 @@ function renderRes(){
       <button class="bs" style="font-size:10px" onclick="window.open(CFG.solicitudUrl,'_blank')">📋 Nueva solicitud</button>
     </div>
   `;
+  
+  const paneRes = document.getElementById('pane-res');
+  if(paneRes) paneRes.innerHTML = htmlContent;
 }
 
 // ============================================================
@@ -1722,7 +1794,7 @@ function renderCal(){
     </div>`;
   }
 
-  document.getElementById('pane-cal').innerHTML=`
+  const calendarHtml = `
     <div class="cal-nav">
       <button class="cal-nav-btn" onclick="calPrev()">← Ant</button>
       <div class="cal-month-label">${moName}</div>
@@ -1753,6 +1825,9 @@ function renderCal(){
       <button class="bg" style="font-size:12px;padding:10px 20px;white-space:nowrap" onclick="exportICS()">📥 Descargar cobros.ics (12 meses)</button>
     </div>
   `;
+  
+  const paneCall = document.getElementById('pane-cal');
+  if(paneCall) paneCall.innerHTML = calendarHtml;
 }
 
 function calPrev(){ calViewMonth--; if(calViewMonth<1){calViewMonth=12;calViewYear--;} renderCal(); }
@@ -1763,8 +1838,12 @@ function showDayPopup(d, yr, mo){
   if(!act.length) return;
   const isCurrentMonth=(yr===TYR&&mo===TMON);
   const moName=new Date(yr,mo-1,1).toLocaleDateString('es-MX',{month:'long'}).toUpperCase();
-  document.getElementById('dayPopupTitle').textContent=`DÍA ${d} — ${moName}`;
-  document.getElementById('dayPopupContent').innerHTML=act.map(a=>{
+  
+  const titleEl = document.getElementById('dayPopupTitle');
+  const contentEl = document.getElementById('dayPopupContent');
+  
+  if(titleEl) titleEl.textContent=`DÍA ${d} — ${moName}`;
+  if(contentEl) contentEl.innerHTML=act.map(a=>{
     const ov=isCurrentMonth?dOvr(a.ddp,a):0;
     const mc=ov>0?multaAcumulada(a):0;
     return `<div style="border:1px solid var(--brd);border-radius:7px;padding:9px;margin-bottom:6px;background:var(--bg3)">
@@ -1783,13 +1862,19 @@ function showDayPopup(d, yr, mo){
       </div>
     </div>`;
   }).join('');
-  document.getElementById('dayPopup').style.display='block';
-  // Position near center
-  document.getElementById('dayPopup').style.top='50%';
-  document.getElementById('dayPopup').style.left='50%';
-  document.getElementById('dayPopup').style.transform='translate(-50%,-50%)';
+  
+  const dayPopupEl = document.getElementById('dayPopup');
+  if(dayPopupEl) {
+    dayPopupEl.style.display='block';
+    dayPopupEl.style.top='50%';
+    dayPopupEl.style.left='50%';
+    dayPopupEl.style.transform='translate(-50%,-50%)';
+  }
 }
-function closePopup(){ document.getElementById('dayPopup').style.display='none'; }
+function closePopup(){ 
+  const dayPopupEl = document.getElementById('dayPopup');
+  if(dayPopupEl) dayPopupEl.style.display='none';
+}
 
 // ============================================================
 // LLAMAR — ejecuta llamada al CLIENTE (nunca al admin)
@@ -1992,7 +2077,8 @@ function filterMXN(q){
       }).join('');
       html += '</tbody></table></div>';
     }
-    document.getElementById('tbl-mxn').innerHTML = html;
+    const tblMxn = document.getElementById('tbl-mxn');
+    if(tblMxn) tblMxn.innerHTML = html;
   } catch(e) {
     console.error('❌ Error en filterMXN:', e.message);
   }
@@ -2076,7 +2162,8 @@ function filterUSD(q){
       }).join('');
       html += '</tbody></table></div>';
     }
-    document.getElementById('tbl-usd').innerHTML = html;
+    const tblUsd = document.getElementById('tbl-usd');
+    if(tblUsd) tblUsd.innerHTML = html;
   } catch(e) {
     console.error('❌ Error en filterUSD:', e.message);
   }
@@ -2150,7 +2237,8 @@ function renderSoc(){
   });
   
   html += '</tbody></table></div>';
-  document.getElementById('pane-soc').innerHTML = html;
+  const paneSoc = document.getElementById('pane-soc');
+  if(paneSoc) paneSoc.innerHTML = html;
 }
 function toggleSocio(idx){
   const detailRow = document.getElementById(`socio-detail-${idx}`);
@@ -2260,7 +2348,7 @@ function renderVnd(){
     </div>
   </div>`;
   
-  document.getElementById('pane-vnd').innerHTML = vendHTML;
+  const paneVnd = document.getElementById('pane-vnd'); if(paneVnd) paneVnd.innerHTML = vendHTML;
   VEND_actualizar();
   
   // Si no hay cuentas tipo COMISIONISTA, mostrar mensaje
@@ -2402,7 +2490,7 @@ function renderLiq(){
     `;
   }
   
-  document.getElementById('pane-liq').innerHTML = `
+  const paneLinContent = `
     <div style="font-size:10px;color:var(--t3);font-family:var(--mono);margin-bottom:1rem">// liquidaciones — manuales y automáticas del backup</div>
     <div class="mrow">
       <div class="mc"><div class="mc-l">Total liquidado</div><div class="mc-v" style="color:var(--grn)">${fm(totLiq,'MXN')}</div></div>
@@ -5189,7 +5277,7 @@ function renderRedes(){
     </div>
   `;
   
-  document.getElementById('pane-red').innerHTML = redesHTML;
+  const pane = document.getElementById('pane-red'); if(pane) pane.innerHTML = redesHTML;
 }
 
 function REDES_toggleExpand(nombre){
@@ -6049,13 +6137,28 @@ function recalcSplit(){
   const rate = parseFloat(document.getElementById('nrate').value)||0;
   const pct = parseFloat(document.getElementById('nsplitPct').value);
   const preview = document.getElementById('split-preview');
-  if(!amt||!rate||isNaN(pct)){preview.style.display='none';return;}
+  
+  // ✅ Validar que preview existe antes de usarlo
+  if(!preview) return;
+  
+  if(!amt||!rate||isNaN(pct)){
+    preview.style.display='none';
+    return;
+  }
+  
   const totalInt = Math.round(amt*rate/100);
   const tuya = Math.round(totalInt*pct/100);
   const vend = totalInt - tuya;
-  document.getElementById('sp-total').textContent = '$'+totalInt.toLocaleString('es-MX')+' MXN';
-  document.getElementById('sp-tuya').textContent = '$'+tuya.toLocaleString('es-MX')+' MXN';
-  document.getElementById('sp-vend').textContent = '$'+vend.toLocaleString('es-MX')+' MXN';
+  
+  // ✅ Validar que los elementos existen antes de asignar
+  const spTotal = document.getElementById('sp-total');
+  const spTuya = document.getElementById('sp-tuya');
+  const spVend = document.getElementById('sp-vend');
+  
+  if(spTotal) spTotal.textContent = '$'+totalInt.toLocaleString('es-MX')+' MXN';
+  if(spTuya) spTuya.textContent = '$'+tuya.toLocaleString('es-MX')+' MXN';
+  if(spVend) spVend.textContent = '$'+vend.toLocaleString('es-MX')+' MXN';
+  
   preview.style.display='block';
 }
 
@@ -6064,32 +6167,19 @@ function toggleNF(){
   const vend=document.getElementById('nvend').value;
   
   // Ocultar/mostrar campos según el tipo
-  document.getElementById('nf-acuerdo').style.display=t==='acuerdo'?'grid':'none';
-  document.getElementById('nf-socio').style.display=t==='socio'?'block':'none';
-  document.getElementById('nf-pex').style.display=t==='pex'?'block':'none';
-  document.getElementById('nf-ice').style.display=t==='congelada'?'block':'none';
-  document.getElementById('nf-split').style.display=(t.startsWith('vendedor')||vend)?'block':'none';
-  document.getElementById('nf-activo').style.display=t==='activo'?'block':'none';
+  const nfAcuerdo = document.getElementById('nf-acuerdo');
+  const nfSocio = document.getElementById('nf-socio');
+  const nfPex = document.getElementById('nf-pex');
+  const nfIce = document.getElementById('nf-ice');
+  const nfSplit = document.getElementById('nf-split');
+  const nfActivo = document.getElementById('nf-activo');
   
-  // OCULTAR CAMPOS INNECESARIOS PARA PEX
-  const ddpField = document.querySelector('label:contains("DDP")').closest('.frow');
-  const interesField = document.querySelector('label:contains("Interés")').closest('.frow');
-  const monedaField = document.querySelector('label:contains("Moneda")').closest('.frow');
-  const vendedorField = document.querySelector('label:contains("Vendedor")').closest('.frow');
-  
-  if(t === 'pex') {
-    // PEX: Ocultar DDP, Interés, Moneda, Vendedor
-    if(ddpField) ddpField.style.display = 'none';
-    if(interesField) interesField.style.display = 'none';
-    if(monedaField) monedaField.style.display = 'none';
-    if(vendedorField) vendedorField.style.display = 'none';
-  } else {
-    // Otros tipos: mostrar todos
-    if(ddpField) ddpField.style.display = 'block';
-    if(interesField) interesField.style.display = 'block';
-    if(monedaField) monedaField.style.display = 'block';
-    if(vendedorField) vendedorField.style.display = 'block';
-  }
+  if(nfAcuerdo) nfAcuerdo.style.display=t==='acuerdo'?'grid':'none';
+  if(nfSocio) nfSocio.style.display=t==='socio'?'block':'none';
+  if(nfPex) nfPex.style.display=t==='pex'?'block':'none';
+  if(nfIce) nfIce.style.display=t==='congelada'?'block':'none';
+  if(nfSplit) nfSplit.style.display=(t.startsWith('vendedor')||vend)?'block':'none';
+  if(nfActivo) nfActivo.style.display=t==='activo'?'block':'none';
   
   // Limpiar preview al cambiar tipo
   const prev=document.getElementById('split-preview');
@@ -6323,11 +6413,15 @@ function mostrarBackupUI(){
 
 function agregarCuenta() {
   try {
+    console.log('🔍 Iniciando agregarCuenta...');
+    
     const nombre = (document.getElementById('nn')?.value || '').trim();
     const amtStr = document.getElementById('namt')?.value || '0';
     const ddpStr = document.getElementById('nddp')?.value || '0';
     const rateStr = document.getElementById('nrate')?.value || String(CFG?.tasaDefecto || 0);
     const type = document.getElementById('ntype')?.value || 'normal';
+    
+    console.log('📋 Datos del formulario:', {nombre, amtStr, ddpStr, rateStr, type});
     
     const amt = parseFloat(amtStr);
     const ddp = parseInt(ddpStr);
@@ -6335,64 +6429,100 @@ function agregarCuenta() {
     
     const msg = document.getElementById('nmsg');
     
+    const showError = (text) => {
+      console.warn('⚠️', text);
+      if(msg) {
+        msg.textContent = text;
+        msg.style.color = '#ff0058';
+      } else {
+        alert(text);
+      }
+    };
+    
+    const showSuccess = (text) => {
+      console.log('✅', text);
+      if(msg) {
+        msg.textContent = text;
+        msg.style.color = '#00ff88';
+      }
+    };
+    
+    // VALIDACIONES
     if (!nombre || nombre.length === 0) {
-      msg.textContent = '// ❌ El nombre es requerido';
-      msg.style.color = '#ff0058';
+      showError('// ❌ El nombre es requerido');
       return false;
     }
     
     if (nombre.length < 3) {
-      msg.textContent = '// ❌ El nombre debe tener al menos 3 caracteres';
-      msg.style.color = '#ff0058';
+      showError('// ❌ El nombre debe tener al menos 3 caracteres');
       return false;
     }
     
     if (isNaN(amt) || amt <= 0) {
-      msg.textContent = '// ❌ El monto debe ser un número > 0';
-      msg.style.color = '#ff0058';
+      showError('// ❌ El monto debe ser un número > 0');
       return false;
     }
     
-    // PEX NO REQUIERE DDP ni INTERÉS — son automáticos
+    // PEX NO REQUIERE DDP ni INTERÉS
     if (type !== 'pex') {
       if (isNaN(ddp) || ddp < 1 || ddp > 31) {
-        msg.textContent = '// ❌ El DDP debe estar entre 1 y 31';
-        msg.style.color = '#ff0058';
+        showError('// ❌ El DDP debe estar entre 1 y 31');
         return false;
       }
+    }
+    
+    // VALIDACIONES ESPECÍFICAS POR TIPO
+    if (type === 'socio') {
+      const nombreSocio = (document.getElementById('nsocio')?.value || '').trim();
+      if (!nombreSocio) {
+        showError('// ❌ Debes ingresar el nombre del socio');
+        return false;
+      }
+      console.log('✓ Socio validado:', nombreSocio);
+    }
+    
+    if (type === 'acuerdo') {
+      const nnp = document.getElementById('nnp')?.value;
+      const nmp = document.getElementById('nmp')?.value;
+      if (!nnp || !nmp || parseInt(nnp) <= 0 || parseFloat(nmp) <= 0) {
+        showError('// ❌ Debes ingresar número de pagos y monto por pago');
+        return false;
+      }
+      console.log('✓ Acuerdo validado');
+    }
+    
+    if (type === 'congelada') {
+      const pagoPeriodico = parseFloat(document.getElementById('nice_pago')?.value || '0');
+      const numeroPagos = parseInt(document.getElementById('nice_pagos')?.value || '0');
+      if (!pagoPeriodico || pagoPeriodico <= 0 || !numeroPagos || numeroPagos <= 0) {
+        showError('// ❌ Debes ingresar pago periódico y número de pagos para ICE');
+        return false;
+      }
+      console.log('✓ ICE validado');
     }
     
     if (!Array.isArray(accs)) {
       accs = [];
     }
     
-    // 🔎 BUSCAR TODAS LAS CUENTAS CON EL MISMO NOMBRE
-    const clientesExistentes = accs.filter(a => 
-      String(a.name).toLowerCase() === nombre.toLowerCase()
-    );
-    
-    // 🔧 Si ya existe cliente, simplemente continuar sin interrumpir (agregar otra cuenta)
-    // No mostrar modal - dejar que agregue normalmente
-    
-    // ✅ CREAR NUEVA CUENTA
+    // CREAR NUEVA CUENTA
     const nuevoId = Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     
-    // 📅 CALCULAR FECHA DE INICIO
+    // CALCULAR FECHA DE INICIO
     const fechaInicioInput = (document.getElementById('nfechaInicio')?.value || '').trim();
     let fechaInicio = fechaInicioInput;
     if (!fechaInicio) {
-      // Si no hay fecha de inicio, usar hoy
       const hoy = new Date();
       fechaInicio = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
     }
     
     const nuevaCuenta = {
       id: nuevoId,
-      clientNum: 'CLT-' + (nextClientNum++), // ✅ Número de cliente único y secuencial
+      clientNum: 'CLT-' + (nextClientNum++),
       name: nombre,
       amt: amt,
-      ddp: type === 'pex' ? null : ddp,  // PEX NO TIENE DDP
-      rate: type === 'pex' ? 0 : rate,   // PEX NO TIENE RATE
+      ddp: type === 'pex' ? null : ddp,
+      rate: type === 'pex' ? 0 : rate,
       cur: document.getElementById('ncur')?.value || 'MXN',
       type: type,
       red: (document.getElementById('nred')?.value || '').trim(),
@@ -6411,22 +6541,19 @@ function agregarCuenta() {
       meses: 0,
       creadoEn: new Date().toLocaleDateString('es-MX'),
       creadoA: new Date().toLocaleTimeString('es-MX'),
-      puedeAparecerEnCalendario: type !== 'pex'  // PEX NO APARECE EN CALENDARIO
+      puedeAparecerEnCalendario: type !== 'pex'
     };
     
+    // CONFIGURACIÓN ESPECÍFICA POR TIPO
     if (type === 'socio') {
       const nombreSocio = (document.getElementById('nsocio')?.value || '').trim();
-      if (!nombreSocio) {
-        msg.textContent = '// ❌ Falta el nombre del socio';
-        msg.style.color = '#ff0058';
-        return false;
-      }
       nuevaCuenta.nombreSocio = nombreSocio;
       nuevaCuenta.capitalAlex = Math.round(amt / 2);
       nuevaCuenta.capitalSocio = amt - nuevaCuenta.capitalAlex;
       const totalInt = Math.round(amt * rate / 100);
       nuevaCuenta.interesAlex = Math.round(totalInt / 2);
       nuevaCuenta.interesSocio = totalInt - nuevaCuenta.interesAlex;
+      console.log('📊 Socio configurado:', {capitalAlex: nuevaCuenta.capitalAlex, capitalSocio: nuevaCuenta.capitalSocio});
     }
     
     if (type === 'acuerdo') {
@@ -6440,22 +6567,14 @@ function agregarCuenta() {
     }
     
     if (type === 'pex') {
-      // PEX: Express — interés diario
       nuevaCuenta.interésDiario = true;
       nuevaCuenta.pagosRealizados = 0;
     }
     
     if (type === 'congelada') {
-      // ICE: Cuentas Congeladas — pago por período ya pactado
       const pagoPeriodico = parseFloat(document.getElementById('nice_pago')?.value || '0');
       const numeroPagos = parseInt(document.getElementById('nice_pagos')?.value || '0');
       const frecuencia = document.getElementById('nice_frecuencia')?.value || 'Cada 2 Semanas';
-      
-      if (!pagoPeriodico || pagoPeriodico <= 0 || !numeroPagos || numeroPagos <= 0) {
-        msg.textContent = '// ❌ ICE: Falta pago por período o número de pagos';
-        msg.style.color = '#ff0058';
-        return false;
-      }
       
       nuevaCuenta.pagoPeriodico = pagoPeriodico;
       nuevaCuenta.numeroPagosTotal = numeroPagos;
@@ -6473,71 +6592,18 @@ function agregarCuenta() {
       nuevaCuenta.splitPct = pct;
     }
     
+    console.log('💾 Guardando cuenta:', nuevaCuenta);
     accs.push(nuevaCuenta);
     
-    // ✅ INICIALIZAR MORA CORRECTAMENTE BASADO EN fechaInicio
-    if (typeof recalcularMoraCompleta === 'function') {
-      recalcularMoraCompleta(nuevaCuenta);
-    }
-    
-    // ✅ VINCULAR CUENTA A LA RED SI ESTÁ ASIGNADA
-    if (nuevaCuenta.red) {
-      loadRedes(); // Cargar REDES actuales
-      const redEncontrada = REDES.find(r => r.nombre === nuevaCuenta.red);
-      if (redEncontrada) {
-        // Verificar si la cuenta YA EXISTE en la red
-        if (!redEncontrada.cuentas) {
-          redEncontrada.cuentas = [];
-        }
-        
-        const cuentaYaExiste = redEncontrada.cuentas.findIndex(c => 
-          String(c.id) === String(nuevaCuenta.id) || 
-          c.nombre.toLowerCase() === nuevaCuenta.name.toLowerCase()
-        );
-        
-        if (cuentaYaExiste >= 0) {
-          // Actualizar la cuenta existente
-          const cuentaEnRed = {
-            id: nuevaCuenta.id,
-            nombre: nuevaCuenta.name,
-            monto: nuevaCuenta.amt,
-            ddp: nuevaCuenta.ddp,
-            rate: nuevaCuenta.rate,
-            wa: nuevaCuenta.wa,
-            estado: nuevaCuenta.status,
-            registradaEn: new Date().toLocaleDateString('es-MX')
-          };
-          redEncontrada.cuentas[cuentaYaExiste] = cuentaEnRed;
-          console.log('✅ Cuenta actualizada en red:', redEncontrada.nombre);
-        } else {
-          // Agregar cuenta nueva a la red
-          const cuentaEnRed = {
-            id: nuevaCuenta.id,
-            nombre: nuevaCuenta.name,
-            monto: nuevaCuenta.amt,
-            ddp: nuevaCuenta.ddp,
-            rate: nuevaCuenta.rate,
-            wa: nuevaCuenta.wa,
-            estado: nuevaCuenta.status,
-            registradaEn: new Date().toLocaleDateString('es-MX')
-          };
-          redEncontrada.cuentas.push(cuentaEnRed);
-          console.log('✅ Cuenta vinculada a red:', redEncontrada.nombre);
-        }
-        saveRedes();
-      }
-    }
-    
-    // 💾 GUARDAR EN LOCALSTORAGE COMPARTIDO PARA CASHAZO
+    // GUARDAR EN LOCALSTORAGE
     try {
       localStorage.setItem('cashazo_accounts', JSON.stringify(accs));
-      localStorage.setItem('cashazo_redes', JSON.stringify(REDES));
-      console.log('✅ Cuenta guardada en localStorage compartido para Cashazo');
+      console.log('✅ Guardado en localStorage');
     } catch(e) {
-      console.error('⚠️ Error guardando en localStorage:', e);
+      console.error('⚠️ Error en localStorage:', e.message);
     }
     
-    // Limpiar formulario
+    // LIMPIAR FORMULARIO
     const campos = [
       'nn', 'namt', 'nddp', 'nrate', 'nwa', 'nsms', 'ndir', 
       'ncurp', 'ncorreo', 'nref1', 'nref2', 'nnotes', 'nsplitPct', 
@@ -6548,8 +6614,9 @@ function agregarCuenta() {
     campos.forEach(id => {
       const el = document.getElementById(id);
       if (el) {
-        el.value = '';
-        el.textContent = '';
+        if (el.tagName === 'INPUT' || el.tagName === 'SELECT') {
+          el.value = '';
+        }
       }
     });
     
@@ -6557,37 +6624,36 @@ function agregarCuenta() {
     if (ncurEl) ncurEl.value = 'MXN';
     
     const ntypeEl = document.getElementById('ntype');
-    if (ntypeEl) ntypeEl.value = 'normal';
-    
-    const nvend = document.getElementById('nvend');
-    if (nvend) nvend.value = '';
+    if (ntypeEl) {
+      ntypeEl.value = 'normal';
+      if (typeof toggleNF === 'function') toggleNF();
+    }
     
     const sp = document.getElementById('split-preview');
     if (sp) sp.style.display = 'none';
     
+    // RE-RENDER
+    console.log('🔄 Ejecutando renderAll...');
     if (typeof renderAll === 'function') renderAll();
-    if (typeof VEND_actualizar === 'function') VEND_actualizar();
-    if (typeof renderRedes === 'function') renderRedes();
     
     if (typeof persist !== 'undefined' && persist.saveNow) {
       persist.saveNow();
     }
     
-    if (typeof syncToServer === 'function') {
-      syncToServer();
-    }
-    
-    msg.textContent = `// ✅ Registrada "${nombre}" — ID: ${nuevoId.substring(0, 8)}...`;
-    msg.style.color = '#00ff88';
+    showSuccess(`// ✅ Registrada "${nombre}" — ID: ${nuevoId.substring(0, 8)}...`);
+    console.log('✅ agregarCuenta completado exitosamente');
     
     return true;
     
   } catch (e) {
     console.error('❌ ERROR EN agregarCuenta:', e);
+    console.error('Stack:', e.stack);
     const msg = document.getElementById('nmsg');
     if (msg) {
       msg.textContent = '// ❌ Error: ' + e.message;
       msg.style.color = '#ff0058';
+    } else {
+      alert('❌ Error: ' + e.message);
     }
     return false;
   }
@@ -9552,7 +9618,8 @@ window.guardarPagoICE = function(clienteId) {
     const msg = esRecurrente ? `✓ Registrado!\n\n⚠️ Cliente recurrente (#${cuentasAnteriores.length + 1})\n- ${nombre}\n- $${cantidad}\n- Interés/día: $${interesDiario}` : `✓ Registrado!\n\n- ${nombre}\n- $${cantidad}\n- Interés/día (${tasa}%): $${interesDiario}\n- Sin vencimiento fijo — se liquida cuando se pida`;
     alert(msg);
     
-    document.querySelector('.modal-overlay').remove();
+    const overlay = document.querySelector('.modal-overlay');
+    if(overlay) overlay.remove();
   };
   
   window.marcarPagadoExpress = function(idx) {
@@ -9673,7 +9740,8 @@ window.guardarPagoICE = function(clienteId) {
     const msg = esRecurrente ? `✓ Registrada!\n\n⚠️ Cliente recurrente (#${cuentasAnteriores.length + 1})\n- ${nombre}\n- Deuda: $${deuda}\n- Fin: ${fechaFinStr}` : `✓ Registrada!\n\n- ${nombre}\n- Deuda: $${deuda}\n- ${pagos} pagos de $${pago}\n- Fin: ${fechaFinStr}`;
     alert(msg);
     
-    document.querySelector('.modal-overlay').remove();
+    const overlay = document.querySelector('.modal-overlay');
+    if(overlay) overlay.remove();
   };
   
   window.registrarPagoCongelada = function(idx) {
