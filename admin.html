@@ -145,9 +145,7 @@ tr:hover td{background:var(--bg3)}
 .cal-nav-btn{background:var(--bg3);border:1px solid var(--brd2);border-radius:6px;color:var(--t2);font-family:var(--mono);font-size:11px;padding:5px 12px;cursor:pointer}
 .cal-nav-btn:hover{border-color:var(--grn);color:var(--grn)}
 .cal-month-label{font-size:13px;font-weight:700;color:var(--t1);font-family:var(--head)}
-/* CIFRADO */
-.cipher-block{background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:1.25rem;margin-bottom:1rem}
-.cipher-name{font-size:26px;font-weight:700;font-family:var(--mono);color:var(--grn);letter-spacing:2px}
+
 /* CONFIG pane */
 .cfg-section{background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:1.25rem;margin-bottom:1rem}
 .cfg-section h3{font-size:10px;font-weight:700;color:var(--t2);font-family:var(--mono);text-transform:uppercase;letter-spacing:.1em;margin-bottom:1rem;padding-bottom:.5rem;border-bottom:1px solid var(--brd)}
@@ -236,38 +234,23 @@ tr:hover td{background:var(--bg3)}
   <div class="nav" id="mainNav" style="cursor: grab; touch-action: none; overflow-x: auto; scroll-behavior: smooth;">
     <button class="nb on" data-pane="res" onclick="showPane('res',this)">RESUMEN</button>
     <button class="nb" data-pane="cal" onclick="showPane('cal',this)">CALENDARIO</button>
-    <button class="nb" data-pane="mxn" onclick="showPane('mxn',this)">MXN</button>
-    <button class="nb" data-pane="usd" onclick="showPane('usd',this)">USD</button>
     <button class="nb" data-pane="soc" onclick="showPane('soc',this)">SOCIOS</button>
     <button class="nb" data-pane="liq" onclick="showPane('liq',this)">LIQUIDACIONES</button>
-    <button class="nb" data-pane="pex" onclick="showPane('pex',this)">PEX</button>
-    <button class="nb" data-pane="ice" onclick="showPane('ice',this)">ICE</button>
-    <button class="nb" data-pane="vnd" onclick="showPane('vnd',this)">COMISIONES</button>
-    <button class="nb" data-pane="red" onclick="showPane('red',this)">🌐 REDES</button>
-    <button class="nb" data-pane="act" onclick="showPane('act',this)">ACTIVOS</button>
     <button class="nb" data-pane="hoy" onclick="showPane('hoy',this)">HOY</button>
     <button class="nb" data-pane="msg" onclick="showPane('msg',this)">MENSAJES</button>
     <button class="nb" onclick="mostrarBackupUI()" style="margin-left:auto;background:var(--pur);color:white">💾 BACKUP</button>
-    <button class="nb" data-pane="cif" onclick="showPane('cif',this)">CIFRADO</button>
+
     <button class="nb" data-pane="nva" onclick="showPane('nva',this)">+ CUENTA</button>
     <button class="nb" data-pane="cfg" onclick="showPane('cfg',this)">CONFIG</button>
   </div>
 
   <div id="pane-res" class="pane on"></div>
-  <div id="pane-vnd" class="pane"></div>
-  <div id="pane-red" class="pane"></div>
   <div id="pane-cal" class="pane"></div>
-  <div id="pane-mxn" class="pane"></div>
-  <div id="pane-usd" class="pane"></div>
   <div id="pane-soc" class="pane"></div>
   <div id="pane-liq" class="pane"></div>
-  <div id="pane-pex" class="pane"></div>
-  <div id="pane-ice" class="pane"></div>
-
-  <div id="pane-act" class="pane"></div>
   <div id="pane-hoy" class="pane"></div>
   <div id="pane-msg" class="pane"></div>
-  <div id="pane-cif" class="pane"></div>
+
   <div id="pane-nva" class="pane">
     <div class="sec">registrar nueva cuenta</div>
     <div style="background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:1.25rem">
@@ -737,7 +720,7 @@ window.exportBackup = () => {
 // ============================================================
 const HASH_KEY = 0xA7B3;
 function encodeId(id,ddp){ return ((id*137+ddp*31+HASH_KEY)&0xFFFF).toString(16).toUpperCase().padStart(4,'0'); }
-function cipherCode(id,ddp){ const ti=ddp<=7?0:ddp<=15?1:2; return ['BRK','LCH','DIN'][ti]+'-'+encodeId(id,ddp||1); }
+
 function mealLabel(ddp){ if(ddp<=7)return{sym:'☀',name:'BREAKFAST',range:'01–07'}; if(ddp<=15)return{sym:'◑',name:'LUNCH',range:'08–15'}; return{sym:'☾',name:'DINNER',range:'16–31'}; }
 
 // Fecha viva — se recalcula cada vez que se llama
@@ -1041,7 +1024,7 @@ function showPane(id, btn){
   if(p){ p.classList.add('on'); }
   if(btn) btn.classList.add('on');
   prevPane=curPane; curPane=id;
-  const r={res:renderRes,cta:renderCta,cal:renderCal,mxn:renderMXN,usd:renderUSD,soc:renderSoc,vnd:renderVnd,red:renderRedes,act:renderAct,hoy:renderHoy,msg:renderMsg,cif:renderCif,cfg:renderCfg};
+  const r={res:renderRes,cta:renderCta,cal:renderCal,mxn:renderMXN,usd:renderUSD,soc:renderSoc,vnd:renderVnd,red:renderRedes,act:renderAct,hoy:renderHoy,msg:renderMsg,cfg:renderCfg};
 
   // 🔧 NUEVO: al entrar a REDES, jalar directo del servidor primero (no confiar
   // en que el ciclo automático de 15s ya haya corrido o que localStorage esté al día)
@@ -1092,7 +1075,7 @@ function renderAll(){
   if(typeof renderMXN==='function') renderMXN();
   if(typeof renderUSD==='function') renderUSD();
   // Re-renderizar el pane activo si no es res
-  const r={cal:renderCal,mxn:renderMXN,usd:renderUSD,soc:renderSoc,vnd:renderVnd,red:renderRedes,act:renderAct,hoy:renderHoy,msg:renderMsg,cif:renderCif,bot:renderBot};
+  const r={cal:renderCal,mxn:renderMXN,usd:renderUSD,soc:renderSoc,vnd:renderVnd,red:renderRedes,act:renderAct,hoy:renderHoy,msg:renderMsg,bot:renderBot};
   if(r[curPane]) r[curPane]();
 }
 
@@ -1124,7 +1107,7 @@ function renderRes(){
   }).join('');
 
   const todayHtml=todayL.length?todayL.map(a=>`<div class="alert-i a-ok">
-    <span><strong>${a.name}</strong> — ${fm(total(a),a.cur)} — <span style="font-family:var(--mono);font-size:10px">${cipherCode(a.id,a.ddp)}</span></span>
+    <span><strong>${a.name}</strong> — ${fm(total(a),a.cur)}</span>
     <div class="fr"><button class="bg" style="font-size:9px" onclick="openPago('${a.id}','res')">PAGO</button><button class="bs" style="font-size:9px" onclick="sendMsg('${a.id}','cobro')">WA</button></div>
   </div>`).join(''):'<p style="font-size:11px;color:var(--t3);font-family:var(--mono)">// sin cobros hoy</p>';
 
@@ -1135,18 +1118,37 @@ function renderRes(){
   for(let i=0;i<31;i++){ if(!allDDP.includes(i+1)) libre.push(i+1); }
   if(libre.length){libresHtml=`<div class="sec">días libres del mes (sin cobros)</div><div style="display:flex;flex-wrap:wrap;gap:4px">${libre.map(d=>`<span class="bx bx-gr" style="font-size:10px">${String(d).padStart(2,'0')}</span>`).join('')}</div>`;}
 
+  // Calcular colaboraciones, moratoria y % de utilidad
+  const totalMora=act.reduce((s,a)=>s+(a.moraAcumulada||0),0);
+  
+  // ✅ COLABORACIONES = Cuentas tipo "socio" activas (porque son colaboraciones con socios)
+  const totalColaboraciones=act.filter(a => a.type === 'socio' && a.status === 'activo').length;
+  
+  console.log('📊 TOTAL COLABORACIONES (Cuentas de Socio Activas):', totalColaboraciones);
+  
+  // ✅ UTILIDAD CORRECTA = Interés Realmente Generado / Capital Total × 100
+  // El interés se calcula como: capital × (rate/100)
+  const capitalTotalReal=act.reduce((s,a)=>s+a.amt,0);
+  const interesGenerado=act.reduce((s,a)=>{
+    const interes = a.amt * (a.rate / 100);
+    return s + interes;
+  }, 0);
+  const porcentajeUtilidad=capitalTotalReal>0?((interesGenerado+totalMora)/capitalTotalReal*100).toFixed(2):0;
+  
+  console.log('📊 RESUMEN: Capital Total:', capitalTotalReal, 'Interés Generado:', interesGenerado.toFixed(2), 'Mora:', totalMora, '% Utilidad Real:', porcentajeUtilidad);
+  
   // Cargar pendientes del bot
   setTimeout(loadPendientes, 500);
   document.getElementById('pane-res').innerHTML=`<div id="pendientes-box"></div>`+`
     <div class="mrow">
-      <div class="mc"><div class="mc-l">Capital MXN</div><div class="mc-v">${fm(capMXN,'MXN')}</div><div class="mc-s">activo en calle</div></div>
-      <div class="mc"><div class="mc-l">Interés MXN</div><div class="mc-v" style="color:var(--grn)">${fm(intMXN,'MXN')}</div></div>
-      <div class="mc"><div class="mc-l">Capital USD</div><div class="mc-v" style="color:var(--blu)">${fm(capUSD,'USD')}</div><div class="mc-s">dólares</div></div>
-      <div class="mc"><div class="mc-l">Interés USD</div><div class="mc-v" style="color:var(--blu)">${fm(intUSD,'USD')}</div></div>
-      <div class="mc"><div class="mc-l">De vendedor</div><div class="mc-v" style="color:var(--pur)">${fm(vndShare,'MXN')}</div><div class="mc-s">tu parte</div></div>
       <div class="mc"><div class="mc-l">Cobrar hoy</div><div class="mc-v" style="color:var(--grn)">${fm(todayAmt,'MXN')}</div><div class="mc-s">${todayL.length} cuenta${todayL.length!==1?'s':''}</div></div>
       <div class="mc"><div class="mc-l">Vencidas</div><div class="mc-v" style="color:${ovdL.length>0?'var(--red)':'var(--t2)'}">${ovdL.length}</div></div>
       <div class="mc"><div class="mc-l">Total clientes</div><div class="mc-v">${act.length}</div></div>
+      <div class="mc"><div class="mc-l">Capital activo</div><div class="mc-v">${fm(capMXN,'MXN')}</div></div>
+      <div class="mc"><div class="mc-l">Total Interés</div><div class="mc-v" style="color:var(--grn)">${fm(intMXN,'MXN')}</div></div>
+      <div class="mc"><div class="mc-l">Total Moratoria</div><div class="mc-v" style="color:var(--amb)">${fm(totalMora,'MXN')}</div></div>
+      <div class="mc"><div class="mc-l">Colaboraciones</div><div class="mc-v" style="color:var(--pur)">${totalColaboraciones}</div></div>
+      <div class="mc"><div class="mc-l">% Utilidad</div><div class="mc-v" style="color:var(--grn)">${porcentajeUtilidad}%</div></div>
     </div>
     ${ovdL.length?`<div class="sec">vencidas</div>${ovdHtml}`:''}
     <div class="sec">cobros hoy — día ${TDAY}</div>${todayHtml}
@@ -1847,7 +1849,7 @@ function exportICS(){
         `SUMMARY:💰 ${a.name} — ${fm(interest(a)||total(a),a.cur)}`,
         `DTSTART;VALUE=DATE:${ds}`,
         `DTEND;VALUE=DATE:${dsEnd}`,
-        `DESCRIPTION:Cliente: ${a.name}\\n${intStr}\\nCódigo: ${cipherCode(a.id,a.ddp||1)}\\nTasa: ${a.rate}%\\nMulta/día atraso: ${fm(multaDiaria(a),a.cur)}`,
+        `DESCRIPTION:Cliente: ${a.name}\\n${intStr}\\nTasa: ${a.rate}%\\nMulta/día atraso: ${fm(multaDiaria(a),a.cur)}`,
         'BEGIN:VALARM',
         'TRIGGER:-PT24H',
         'ACTION:DISPLAY',
@@ -1897,7 +1899,7 @@ function makeTable(list, showSplit){
     const rowStyle = tieneDeuda ? 'background:rgba(224,82,82,.08);border-left:3px solid var(--red)' : '';
     
     return `<tr style="${rowStyle}">
-      <td><span class="bx bx-b" style="font-size:9px">${cipherCode(a.id,a.ddp||1)}</span></td>
+      <td></td>
       <td>${a.name} <span class="tag ${a.cur==='USD'?'tag-usd':'tag-mxn'}">${a.cur}</span></td>
       <td style="font-family:var(--mono)">${fm(a.amt,a.cur)}</td>
       <td style="font-family:var(--mono)">${a.type==='acuerdo'?'—':a.rate+'% = '+fm(interest(a),a.cur)}${a.type&&a.type.startsWith('vendedor')?'<br><span style="color:var(--pur);font-size:10px">✦ tuyo: '+fm(a.splitAmt||0,a.cur)+'</span>':''}</td>
@@ -2273,7 +2275,7 @@ function renderVnd(){
     const ut = dUntil(a.ddp, a);
     const mc = multaAcumulada(a);
     return `<tr>
-      <td><span class="bx bx-b" style="font-size:9px">${cipherCode(a.id, a.ddp||1)}</span></td>
+      
       <td>${a.name}</td>
       <td style="font-family:var(--mono)">${fm(a.amt, a.cur)}</td>
       <td style="font-family:var(--mono)">${a.rate}%</td>
@@ -2594,7 +2596,7 @@ function renderHoy(){
     <th>Código</th><th>Cliente</th><th>Red</th><th>Principal</th><th>Interés</th><th>Total</th><th>Multa/día</th><th>Pago</th><th>Msg</th>
   </tr></thead><tbody>`+
   todasLasCuentas.map(a=>`<tr>
-    <td><span class="bx bx-b" style="font-size:9px">${cipherCode(a.id,a.ddp)}</span></td>
+    
     <td>${a.name}</td>
     <td style="font-size:9px;color:var(--t3)">${a.red ? a.red : '—'}</td>
     <td style="font-family:var(--mono)">${fm(a.amt,a.cur)}</td>
@@ -3023,24 +3025,7 @@ function renderMsg(){
 // ============================================================
 // CIFRADO
 // ============================================================
-function renderCif(){
-  const meal=mealLabel(TDAY);
-  document.getElementById('pane-cif').innerHTML=`
-    <div class="cipher-block">
-      <div class="cipher-name">${meal.sym} ${meal.name}</div>
-      <div style="font-size:10px;color:var(--t3);font-family:var(--mono);margin-top:8px;line-height:1.8">
-        BRK → días 01–07 · LCH → días 08–15 · DIN → días 16–31<br>
-        XXXX = hash hex (id×137 + ddp×31 + 0xA7B3)
-      </div>
-    </div>
-    <div class="tcard"><table><thead><tr><th>Código</th><th>Cliente</th><th>DDP</th><th>Turno</th></tr></thead><tbody>
-    ${accs.filter(a=>a.status==='activo'&&a.type!=='activo').map(a=>{const m=mealLabel(a.ddp||1);return`<tr>
-      <td><span class="bx bx-b" style="font-size:9px">${cipherCode(a.id,a.ddp||1)}</span></td>
-      <td>${a.name}</td><td style="font-family:var(--mono)">${a.ddp||'—'}</td>
-      <td><span class="bx bx-p">${m.sym} ${m.name}</span></td>
-    </tr>`;}).join('')}
-    </tbody></table></div>`;
-}
+
 
 // ============================================================
 // CONFIG
@@ -3466,8 +3451,8 @@ function openPerfil(id){
       <div class="g2" style="margin-bottom:.5rem">
         <div class="frow"><label>Nombre</label><input id="pf-name" value="${a.name}" style="width:100%;padding:7px 10px;border:1px solid var(--brd2);border-radius:6px;background:var(--bg3);color:var(--t1);font-size:12px;font-family:var(--head)"></div>
         <div class="frow"><label>DDP (día de pago)</label><input id="pf-ddp" type="number" min="1" max="31" value="${a.ddp||''}" style="width:100%;padding:7px 10px;border:1px solid var(--brd2);border-radius:6px;background:var(--bg3);color:var(--t1);font-size:12px;font-family:var(--mono)"></div>
-        <div class="frow"><label>Monto principal</label><input id="pf-amt" type="number" value="${a.amt}" style="width:100%;padding:7px 10px;border:1px solid var(--brd2);border-radius:6px;background:var(--bg3);color:var(--t1);font-size:12px;font-family:var(--mono)"></div>
-        <div class="frow"><label>Interés %</label><input id="pf-rate" type="number" value="${a.rate}" style="width:100%;padding:7px 10px;border:1px solid var(--brd2);border-radius:6px;background:var(--bg3);color:var(--t1);font-size:12px;font-family:var(--mono)"></div>
+        <div class="frow"><label>Monto principal</label><input id="pf-amt" type="number" value="${a.amt}" style="width:100%;padding:7px 10px;border:1px solid var(--brd2);border-radius:6px;background:var(--bg3);color:var(--t1);font-size:12px;font-family:var(--mono)" oninput="actualizarCapitalSocio()"></div>
+        <div class="frow"><label>Interés %</label><input id="pf-rate" type="number" value="${a.rate}" style="width:100%;padding:7px 10px;border:1px solid var(--brd2);border-radius:6px;background:var(--bg3);color:var(--t1);font-size:12px;font-family:var(--mono)" oninput="actualizarCapitalSocio()"></div>
         <div class="frow"><label>Moneda</label><select id="pf-cur" style="width:100%;padding:7px 10px;border:1px solid var(--brd2);border-radius:6px;background:var(--bg3);color:var(--t1);font-size:12px">
           <option value="MXN" ${a.cur==='MXN'?'selected':''}>MXN</option>
           <option value="USD" ${a.cur==='USD'?'selected':''}>USD</option>
@@ -3488,10 +3473,10 @@ function openPerfil(id){
       ${a.type==='socio'?`<div class="sec" style="margin-top:.75rem">📊 datos del socio — 50/50</div>
       <div class="g2" style="margin-bottom:.5rem">
         <div class="frow"><label>👥 Nombre del Socio</label><input id="pf-socio" value="${a.nombreSocio||''}" style="width:100%;padding:7px 10px;border:1px solid var(--brd2);border-radius:6px;background:var(--bg3);color:var(--t1);font-size:12px"></div>
-        <div class="frow"><label>💰 Capital Tuyo</label><input id="pf-cap-alex" type="number" value="${a.capitalAlex||0}" disabled style="width:100%;padding:7px 10px;border:1px solid var(--brd2);border-radius:6px;background:var(--bg3);color:var(--t1);font-size:12px;opacity:0.7"></div>
-        <div class="frow"><label>💰 Capital Socio</label><input id="pf-cap-socio" type="number" value="${a.capitalSocio||0}" disabled style="width:100%;padding:7px 10px;border:1px solid var(--brd2);border-radius:6px;background:var(--bg3);color:var(--t1);font-size:12px;opacity:0.7"></div>
-        <div class="frow"><label>💚 Interés Tuyo</label><input id="pf-int-alex" type="number" value="${a.interesAlex||0}" disabled style="width:100%;padding:7px 10px;border:1px solid var(--brd2);border-radius:6px;background:var(--bg3);color:var(--grn);font-size:12px;opacity:0.7;font-weight:bold"></div>
-        <div class="frow"><label>💜 Interés Socio</label><input id="pf-int-socio" type="number" value="${a.interesSocio||0}" disabled style="width:100%;padding:7px 10px;border:1px solid var(--brd2);border-radius:6px;background:var(--bg3);color:var(--pur);font-size:12px;opacity:0.7;font-weight:bold"></div>
+        <div class="frow"><label>💰 Capital Tuyo</label><input id="pf-cap-alex" type="number" value="${a.capitalAlex||0}" style="width:100%;padding:7px 10px;border:1px solid var(--brd2);border-radius:6px;background:var(--bg3);color:var(--t1);font-size:12px;font-family:var(--mono);opacity:0.9" readonly></div>
+        <div class="frow"><label>💰 Capital Socio</label><input id="pf-cap-socio" type="number" value="${a.capitalSocio||0}" style="width:100%;padding:7px 10px;border:1px solid var(--brd2);border-radius:6px;background:var(--bg3);color:var(--t1);font-size:12px;font-family:var(--mono);opacity:0.9" readonly></div>
+        <div class="frow"><label>💚 Interés Tuyo</label><input id="pf-int-alex" type="number" value="${a.interesAlex||0}" style="width:100%;padding:7px 10px;border:1px solid var(--brd2);border-radius:6px;background:var(--bg3);color:var(--grn);font-size:12px;font-family:var(--mono);opacity:0.9;font-weight:bold" readonly></div>
+        <div class="frow"><label>💜 Interés Socio</label><input id="pf-int-socio" type="number" value="${a.interesSocio||0}" style="width:100%;padding:7px 10px;border:1px solid var(--brd2);border-radius:6px;background:var(--bg3);color:var(--pur);font-size:12px;font-family:var(--mono);opacity:0.9;font-weight:bold" readonly></div>
       </div>`:''}
 
       <div class="sec" style="margin-top:.75rem">datos personales</div>
@@ -3505,11 +3490,12 @@ function openPerfil(id){
         <div class="frow"><label>CURP</label><input id="pf-curp" value="${a.curp||''}" style="width:100%;padding:7px 10px;border:1px solid var(--brd2);border-radius:6px;background:var(--bg3);color:var(--t1);font-size:12px;font-family:var(--mono)"></div>
       </div>
 
-      <div class="sec" style="margin-top:.75rem">referencias</div>
+      <div class="sec" style="margin-top:.75rem">referencias y colaboraciones</div>
       <div class="g2" style="margin-bottom:.5rem">
         <div class="frow"><label>Referencia 1</label><input id="pf-ref1" value="${a.ref1||''}" style="width:100%;padding:7px 10px;border:1px solid var(--brd2);border-radius:6px;background:var(--bg3);color:var(--t1);font-size:12px"></div>
         <div class="frow"><label>Referencia 2</label><input id="pf-ref2" value="${a.ref2||''}" style="width:100%;padding:7px 10px;border:1px solid var(--brd2);border-radius:6px;background:var(--bg3);color:var(--t1);font-size:12px"></div>
         <div class="frow" style="grid-column:1/-1"><label>Notas</label><input id="pf-notes" value="${a.notes||''}" style="width:100%;padding:7px 10px;border:1px solid var(--brd2);border-radius:6px;background:var(--bg3);color:var(--t1);font-size:12px"></div>
+        <div class="frow"><label>🤝 Colaboraciones</label><input id="pf-colab" type="number" min="0" value="${a.colaboraciones||0}" style="width:100%;padding:7px 10px;border:1px solid var(--brd2);border-radius:6px;background:var(--bg3);color:var(--t1);font-size:12px;font-family:var(--mono)"></div>
       </div>
 
       ${a.gps?`<div class="sec" style="margin-top:.75rem">📍 ubicación GPS registrada</div>
@@ -3852,6 +3838,59 @@ function openPerfil(id){
   }
 }
 
+// ✅ FUNCIÓN PARA RECALCULAR CAPITAL/INTERÉS DE SOCIO EN TIEMPO REAL
+function actualizarCapitalSocio(){
+  try {
+    // Solo recalcular si existen los campos de socio
+    if(!document.getElementById('pf-cap-alex')) return;
+    
+    const nuevoMonto = parseFloat(document.getElementById('pf-amt').value) || 0;
+    const interesPct = parseFloat(document.getElementById('pf-rate').value) || 0;
+    
+    if(nuevoMonto <= 0) return;
+    
+    // División 50/50
+    const capital_alex = Math.round(nuevoMonto / 2);
+    const capital_socio = nuevoMonto - capital_alex;
+    
+    // Interés sobre capital (50/50)
+    const interes_total = Math.round(nuevoMonto * (interesPct / 100));
+    const interes_alex = Math.round(interes_total / 2);
+    const interes_socio = interes_total - interes_alex;
+    
+    // Actualizar campos
+    const capAlexEl = document.getElementById('pf-cap-alex');
+    const capSocioEl = document.getElementById('pf-cap-socio');
+    const intAlexEl = document.getElementById('pf-int-alex');
+    const intSocioEl = document.getElementById('pf-int-socio');
+    
+    if(capAlexEl) {
+      capAlexEl.value = capital_alex;
+      capAlexEl.style.backgroundColor = 'rgba(45,189,130,.2)';
+      setTimeout(() => capAlexEl.style.backgroundColor = '', 500);
+    }
+    if(capSocioEl) {
+      capSocioEl.value = capital_socio;
+      capSocioEl.style.backgroundColor = 'rgba(45,189,130,.2)';
+      setTimeout(() => capSocioEl.style.backgroundColor = '', 500);
+    }
+    if(intAlexEl) {
+      intAlexEl.value = interes_alex;
+      intAlexEl.style.backgroundColor = 'rgba(45,189,130,.2)';
+      setTimeout(() => intAlexEl.style.backgroundColor = '', 500);
+    }
+    if(intSocioEl) {
+      intSocioEl.value = interes_socio;
+      intSocioEl.style.backgroundColor = 'rgba(45,189,130,.2)';
+      setTimeout(() => intSocioEl.style.backgroundColor = '', 500);
+    }
+    
+    console.log('✅ ACTUALIZADO — Monto nuevo:', nuevoMonto, '| Tú:', capital_alex, '| Socio:', capital_socio, '| Interés Total:', interes_total, '| Tu Interés:', interes_alex);
+  } catch(e) {
+    console.error('Error en actualizarCapitalSocio:', e);
+  }
+}
+
 function guardarPerfil(id){
   const idStr=String(id);
   const a=accs.find(x=>String(x.id)===idStr);
@@ -3892,6 +3931,11 @@ function guardarPerfil(id){
   }
   if(a.type==='socio'){
     a.nombreSocio=document.getElementById('pf-socio').value.trim()||a.nombreSocio;
+    // ✅ GUARDAR CAPITAL E INTERÉS RECALCULADOS 50/50
+    a.capitalAlex=parseInt(document.getElementById('pf-cap-alex').value)||a.capitalAlex||0;
+    a.capitalSocio=parseInt(document.getElementById('pf-cap-socio').value)||a.capitalSocio||0;
+    a.interesAlex=parseInt(document.getElementById('pf-int-alex').value)||a.interesAlex||0;
+    a.interesSocio=parseInt(document.getElementById('pf-int-socio').value)||a.interesSocio||0;
   }
   a.fechaInicio=document.getElementById('pf-inicio').value;
   a.startMonth=document.getElementById('pf-startm').value.trim()||undefined;
@@ -3905,6 +3949,7 @@ function guardarPerfil(id){
   a.ref1=document.getElementById('pf-ref1').value.trim();
   a.ref2=document.getElementById('pf-ref2').value.trim();
   a.notes=document.getElementById('pf-notes').value.trim();
+  a.colaboraciones=parseInt(document.getElementById('pf-colab').value)||0;
 
   // ✅ RECALCULAR MORA COMPLETA SI CAMBIÓ fechaInicio O ddp
   if (typeof recalcularMoraCompleta === 'function') {
@@ -3921,7 +3966,7 @@ function guardarPerfil(id){
   try{
     document.querySelector('#pane-perfil .modal-title').textContent=a.name;
     const codeEl=document.querySelector('#pane-perfil [style*="CÓDIGO"]');
-    if(codeEl) codeEl.textContent='CÓDIGO: '+cipherCode(a.id,a.ddp||1);
+    
     // Actualizar badge de estado
     const badge=document.querySelector('#pane-perfil .modal-title').nextElementSibling;
     if(badge&&badge.classList.contains('bx')){
@@ -3994,6 +4039,14 @@ function guardarPerfil(id){
     console.log('✅ REDES actualizadas');
   }catch(e){
     console.error('Error renderizando REDES:', e);
+  }
+  
+  // ✅ ACTUALIZAR RESUMEN EN TIEMPO REAL (colaboraciones, moratoria, % utilidad)
+  try{
+    if(typeof renderRes==='function') renderRes();
+    console.log('✅ Resumen actualizado');
+  }catch(e){
+    console.error('Error actualizando resumen:', e);
   }
   
   console.log('✅ GUARDAR PERFIL COMPLETADO - Cuenta:', a.name);
@@ -7977,6 +8030,30 @@ try {
 }
 console.log('📊 Inyección completada:', accs.length, 'cuentas de', accs.map(a => a.name).join(', '));
 
+// ✅ INICIALIZAR CAMPO COLABORACIONES PARA CUENTAS ANTIGUAS
+accs.forEach(a => {
+  if(typeof a.colaboraciones === 'undefined') {
+    a.colaboraciones = 0;
+  }
+});
+
+// 🔄 CARGAR COLABORACIONES DESDE LOCALSTORAGE SI EXISTEN (en caso de que estén guardadas)
+try {
+  const colaboracionesGuardadas = localStorage.getItem('cashazo_colaboraciones');
+  if(colaboracionesGuardadas) {
+    const colabObj = JSON.parse(colaboracionesGuardadas);
+    Object.keys(colabObj).forEach(id => {
+      const cuenta = accs.find(a => a.id === id);
+      if(cuenta) {
+        cuenta.colaboraciones = colabObj[id];
+      }
+    });
+    console.log('✅ Colaboraciones cargadas desde localStorage');
+  }
+} catch(e) {
+  console.warn('No se pudieron cargar colaboraciones:', e);
+}
+
 // 🔄 SINCRONIZAR nextClientNum con clientes existentes
 accs.forEach(a => {
   if(!a.clientNum) {
@@ -9621,221 +9698,9 @@ window.guardarPagoICE = function(clienteId) {
   
   
   // ✅ FUNCIONES PARA PEX (Interés 10% Diario)
-  window.renderPEX = function() {
-    const pane = document.getElementById('pane-pex');
-    if(!pane) return;
-    
-    const cuentasPEX = accs.filter(a => a.type === 'pex');
-    
-    let html = `
-      <div class="sec" onclick="toggleSec(this)">
-        <span class="sec-toggle">+</span>
-        CUENTAS PEX (10% Interés Diario)
-      </div>
-      <div class="sec-content">
-    `;
-    
-    if(cuentasPEX.length === 0) {
-      html += '<div style="text-align:center;color:var(--t3);padding:2rem;font-size:12px">Sin cuentas PEX registradas</div>';
-    } else {
-      html += `
-        <div class="tcard">
-          <table>
-            <thead>
-              <tr>
-                <th>Cliente</th>
-                <th>Monto Original</th>
-                <th>Monto + Interés (10%/día)</th>
-                <th>Fecha Inicio</th>
-                <th>Estado</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-      `;
-      
-      cuentasPEX.forEach((c, idx) => {
-        const fechaInicio = new Date(c.fechaInicio || c.date);
-        const hoy = new Date();
-        const diasTranscurridos = Math.floor((hoy - fechaInicio) / (1000 * 60 * 60 * 24));
-        
-        // 10% del monto original por cada día transcurrido
-        const interesDiario = c.amt * 0.10;
-        const montoActual = c.amt + (interesDiario * diasTranscurridos);
-        
-        const fechaFormato = c.date || c.fechaInicio;
-        
-        html += `
-          <tr>
-            <td>${c.name}</td>
-            <td>$${parseFloat(c.amt).toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
-            <td style="color:var(--amb);font-weight:600">$${montoActual.toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
-            <td><span class="bx bx-gr">${fechaFormato}</span></td>
-            <td><span class="bx ${c.status === 'activo' ? 'bx-g' : 'bx-r'}">${c.status}</span></td>
-            <td style="display:flex;gap:5px;font-size:10px">
-              <button class="bg" onclick="registrarPagoPEX(${idx})" style="padding:5px 9px">✓ Liquidar</button>
-              <button class="br" onclick="eliminarCuentaPEX(${idx})" style="padding:5px 9px">✕</button>
-            </td>
-          </tr>
-        `;
-      });
-      
-      html += `
-            </tbody>
-          </table>
-        </div>
-      `;
-    }
-    
-    html += '</div>';
-    pane.innerHTML = html;
-  };
+
   
-  window.registrarPagoPEX = function(idx) {
-    const cuentasPEX = accs.filter(a => a.type === 'pex');
-    if(!cuentasPEX[idx]) return;
-    
-    const c = cuentasPEX[idx];
-    const hoy = new Date();
-    const fechaHoy = hoy.toLocaleDateString('es-MX');
-    
-    // Calcular monto actual con interés
-    const fechaInicio = new Date(c.fechaInicio || c.date);
-    const diasTranscurridos = Math.floor((hoy - fechaInicio) / (1000 * 60 * 60 * 24));
-    const interesDiario = c.amt * 0.10;
-    const montoActual = c.amt + (interesDiario * diasTranscurridos);
-    
-    if(confirm(`¿Liquidar cuenta PEX de ${c.name}?\n\nMonto pagado: $${montoActual.toLocaleString('es-MX', {minimumFractionDigits:2})}\n\nFecha: ${fechaHoy}`)) {
-      if(!c.hist) c.hist = [];
-      c.hist.push({
-        fecha: fechaHoy,
-        tipo: 'pago-liquidacion',
-        monto: montoActual,
-        nota: 'LIQUIDADA - PEX pagada completamente'
-      });
-      
-      // ✅ ELIMINAR LA CUENTA COMPLETAMENTE (se liquidó)
-      accs = accs.filter(a => !(a.type === 'pex' && a.id === c.id));
-      
-      if(typeof persist !== 'undefined') persist.saveNow();
-      renderPEX();
-      alert(`✅ LIQUIDADA!\n\n- ${c.name}\n- Monto pagado: $${montoActual.toLocaleString('es-MX', {minimumFractionDigits:2})}\n- Fecha: ${fechaHoy}`);
-    }
-  };
-  
-  window.eliminarCuentaPEX = function(idx) {
-    const cuentasPEX = accs.filter(a => a.type === 'pex');
-    if(confirm(`¿Eliminar cuenta ${cuentasPEX[idx].name}?`)) {
-      accs = accs.filter(a => !(a.type === 'pex' && a.id === cuentasPEX[idx].id));
-      if(typeof persist !== 'undefined') persist.saveNow();
-      renderPEX();
-    }
-  };
-  
-  // ✅ FUNCIONES PARA ICE (Cuentas Congeladas)
-  window.renderICE = function() {
-    const pane = document.getElementById('pane-ice');
-    if(!pane) return;
-    
-    const cuentasICE = accs.filter(a => a.type === 'congelada');
-    
-    let html = `
-      <div class="sec" onclick="toggleSec(this)">
-        <span class="sec-toggle">+</span>
-        CUENTAS CONGELADAS (ICE) — Sin Interés
-      </div>
-      <div class="sec-content">
-    `;
-    
-    if(cuentasICE.length === 0) {
-      html += '<div style="text-align:center;color:var(--t3);padding:2rem;font-size:12px">Sin cuentas congeladas registradas</div>';
-    } else {
-      html += `
-        <div class="tcard">
-          <table>
-            <thead>
-              <tr>
-                <th>Cliente</th>
-                <th>Deuda Total</th>
-                <th>Pago c/periodo</th>
-                <th>Pagos #</th>
-                <th>Total</th>
-                <th>Deuda Restante</th>
-                <th>Estado</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-      `;
-      
-      cuentasICE.forEach((c, idx) => {
-        const deudaRestante = c.amt - (c.pagosRealizados || 0);
-        const pagosHechos = c.numeroPagosRealizados || 0;
-        const totalPagos = c.numeroPagosTotal || 0;
-        
-        html += `
-          <tr>
-            <td>${c.name}</td>
-            <td>$${parseFloat(c.amt).toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
-            <td>$${parseFloat(c.pagoPeriodico || 0).toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
-            <td>${pagosHechos}</td>
-            <td>${totalPagos}</td>
-            <td style="color:var(--amb);font-weight:600">$${deudaRestante.toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
-            <td><span class="bx ${c.status === 'activo' ? 'bx-g' : 'bx-r'}">${c.status}</span></td>
-            <td style="display:flex;gap:5px;font-size:10px">
-              <button class="bg" onclick="registrarPagoICE(${idx})" style="padding:5px 9px">✓ Pago</button>
-              <button class="br" onclick="eliminarCuentaICE(${idx})" style="padding:5px 9px">✕</button>
-            </td>
-          </tr>
-        `;
-      });
-      
-      html += `
-            </tbody>
-          </table>
-        </div>
-      `;
-    }
-    
-    html += '</div>';
-    pane.innerHTML = html;
-  };
-  
-  window.registrarPagoICE = function(idx) {
-    const cuentasICE = accs.filter(a => a.type === 'congelada');
-    if(!cuentasICE[idx]) return;
-    
-    const c = cuentasICE[idx];
-    const hoy = new Date();
-    const fechaHoy = hoy.toLocaleDateString('es-MX');
-    
-    if(confirm(`¿Registrar pago de $${c.pagoPeriodico} para ${c.name}?`)) {
-      c.pagosRealizados = (c.pagosRealizados || 0) + c.pagoPeriodico;
-      c.numeroPagosRealizados = (c.numeroPagosRealizados || 0) + 1;
-      
-      if(!c.hist) c.hist = [];
-      c.hist.push({
-        fecha: fechaHoy,
-        tipo: 'pago',
-        monto: c.pagoPeriodico,
-        nota: `Pago ${c.numeroPagosRealizados} de ${c.numeroPagosTotal}`
-      });
-      
-      if(typeof persist !== 'undefined') persist.saveNow();
-      renderICE();
-      const deudaRestante = (c.amt - c.pagosRealizados).toLocaleString('es-MX', {minimumFractionDigits:2});
-      alert(`✓ Pago registrado: $${c.pagoPeriodico}\nDeuda restante: $${deudaRestante}`);
-    }
-  };
-  
-  window.eliminarCuentaICE = function(idx) {
-    const cuentasICE = accs.filter(a => a.type === 'congelada');
-    if(confirm(`¿Eliminar cuenta ${cuentasICE[idx].name}?`)) {
-      accs = accs.filter(a => !(a.type === 'congelada' && a.id === cuentasICE[idx].id));
-      if(typeof persist !== 'undefined') persist.saveNow();
-      renderICE();
-    }
-  };
+
   
   // ✅ ACTUALIZAR renderAll
   const oldRenderAll = window.renderAll;
@@ -9844,8 +9709,6 @@ window.guardarPagoICE = function(clienteId) {
     renderLiq();
     renderExp();
     renderCong();
-    renderPEX();
-    renderICE();
   };
   
   // ✅ INICIALIZAR render de las nuevas secciones al cargar
@@ -9853,8 +9716,6 @@ window.guardarPagoICE = function(clienteId) {
     if(document.getElementById('pane-liq')) renderLiq();
     if(document.getElementById('pane-exp')) renderExp();
     if(document.getElementById('pane-cong')) renderCong();
-    if(document.getElementById('pane-pex')) renderPEX();
-    if(document.getElementById('pane-ice')) renderICE();
   }, 500);
 
   // ✅ FUNCIONES PARA GESTIONAR CUENTAS EN LIQUIDACIÓN
